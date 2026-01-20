@@ -61,8 +61,8 @@ public class LiveSessionController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var result = await _sessionService.DeleteSessionAsync(id);
-        if (!result) return NotFound(ApiResponse.Fail("Session not found"));
-        return Ok(ApiResponse.Ok("Live session deleted successfully"));
+        var title = await _sessionService.DeleteSessionAsync(id);
+        if (title == null) return NotFound(ApiResponse.Fail("Session not found"));
+        return Ok(ApiResponse.Ok($"Live session '{title}' deleted successfully"));
     }
 }

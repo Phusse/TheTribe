@@ -18,6 +18,7 @@ public class UnitOfWork : IUnitOfWork
     public IGenericRepository<Connection> Connections { get; }
     public IGenericRepository<ChatRoom> ChatRooms { get; }
     public IGenericRepository<ChatRoomMember> ChatRoomMembers { get; }
+    public IGenericRepository<RefreshToken> RefreshTokens { get; }
 
     public UnitOfWork(AppDbContext context)
     {
@@ -31,6 +32,7 @@ public class UnitOfWork : IUnitOfWork
         Connections = new GenericRepository<Connection>(_context);
         ChatRooms = new GenericRepository<ChatRoom>(_context);
         ChatRoomMembers = new GenericRepository<ChatRoomMember>(_context);
+        RefreshTokens = new GenericRepository<RefreshToken>(_context);
     }
 
     public async Task<int> CompleteAsync()

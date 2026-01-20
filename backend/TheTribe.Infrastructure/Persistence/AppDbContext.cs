@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<Connection> Connections { get; set; } = null!;
     public DbSet<ChatRoom> ChatRooms { get; set; } = null!;
     public DbSet<ChatRoomMember> ChatRoomMembers { get; set; } = null!;
+    public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

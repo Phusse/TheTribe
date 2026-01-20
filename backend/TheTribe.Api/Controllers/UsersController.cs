@@ -148,7 +148,13 @@ public class UsersController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAllUsers()
     {
-        if (!await IsSuperAdmin()) return Forbid();
+        // Allow both Admin and SuperAdmin
+        var requestorId = GetCurrentUserId();
+        var requestor = await _unitOfWork.Users.GetByIdAsync(requestorId);
+        if (requestor == null || (requestor.Role != Domain.Entities.UserRole.SuperAdmin && requestor.Role != Domain.Entities.UserRole.Admin))
+        {
+            return Forbid();
+        }
         
         var users = await _unitOfWork.Users.GetAllAsync();
         var response = users.Select(u => new UserAdminResponse(

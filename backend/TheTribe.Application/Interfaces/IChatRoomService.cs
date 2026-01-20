@@ -10,4 +10,5 @@ public interface IChatRoomService
     Task<AddMemberResponse> AddMemberAsync(Guid chatRoomId, Guid userId, Guid adminUserId);
     Task<IEnumerable<RoomMemberResponse>> GetMembersAsync(Guid chatRoomId, Guid requestingUserId);
     Task<bool> IsMemberAsync(Guid chatRoomId, Guid userId);
+    Task<ChatRoomResponse> GetRoomAsync(Guid chatRoomId, Guid requestingUserId);
 }

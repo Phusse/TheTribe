@@ -13,6 +13,7 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<TheTribe.Domain.Entities.Connection> Connections { get; }
     IGenericRepository<TheTribe.Domain.Entities.ChatRoom> ChatRooms { get; }
     IGenericRepository<TheTribe.Domain.Entities.ChatRoomMember> ChatRoomMembers { get; }
+    IGenericRepository<TheTribe.Domain.Entities.RefreshToken> RefreshTokens { get; }
     
     Task<int> CompleteAsync();
 }

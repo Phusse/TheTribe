@@ -8,5 +8,5 @@ public interface ILiveSessionService
     Task<LiveSessionResponse?> GetSessionByIdAsync(Guid id);
     Task<LiveSessionResponse> CreateSessionAsync(CreateLiveSessionRequest request, Guid userId);
     Task<LiveSessionResponse?> UpdateSessionAsync(Guid id, UpdateLiveSessionRequest request, Guid userId);
-    Task<bool> DeleteSessionAsync(Guid id);
+    Task<string?> DeleteSessionAsync(Guid id);  // Returns session title or null if not found
 }
