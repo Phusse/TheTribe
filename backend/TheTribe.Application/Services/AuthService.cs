@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using TheTribe.Application.DTOs.Auth;
 using TheTribe.Application.Interfaces;
 using TheTribe.Domain.Entities;
@@ -9,43 +10,39 @@ public class AuthService : IAuthService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
+    private readonly IConfiguration _configuration;
 
-    public AuthService(IUnitOfWork unitOfWork, IPasswordHasher passwordHasher, IJwtTokenGenerator jwtTokenGenerator)
+    public AuthService(IUnitOfWork unitOfWork, IPasswordHasher passwordHasher, IJwtTokenGenerator jwtTokenGenerator, IConfiguration configuration)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
+        _configuration = configuration;
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         var user = await _unitOfWork.Users.GetByEmailAsync(request.Email);
-        if (user == null) // For security, generic message
+        if (user == null)
         {
-             // Simulate work
-             // In real app, verify password to prevent timing attacks, here MVP
-             throw new UnauthorizedAccessException("Invalid credentials."); 
+            throw new UnauthorizedAccessException("Invalid credentials."); 
         }
 
         if (!user.IsActive)
         {
-             throw new UnauthorizedAccessException("Your account has been suspended.");
+            throw new UnauthorizedAccessException("Your account has been suspended.");
         }
 
-        // Verify Password
         if (!_passwordHasher.Verify(request.Password, user.PasswordHash))
         {
             throw new UnauthorizedAccessException("Invalid credentials.");
         }
 
-        var token = _jwtTokenGenerator.GenerateToken(user);
-
-        return new AuthResponse(user.Id, user.Email, user.FirstName, user.LastName, token, user.Role.ToString());
+        return await GenerateAuthResponseAsync(user);
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
     {
-        // Validate Email uniqueness first
         if (await _unitOfWork.Users.GetByEmailAsync(request.Email) != null)
         {
             throw new Exception("User with this email already exists");
@@ -53,7 +50,6 @@ public class AuthService : IAuthService
 
         Invite? invite = null;
         
-        // Only validate invite code if one is provided
         if (!string.IsNullOrWhiteSpace(request.InviteCode))
         {
             var invites = await _unitOfWork.Invites.FindAsync(i => i.Code == request.InviteCode && !i.IsUsed);
@@ -76,7 +72,6 @@ public class AuthService : IAuthService
             CreatedAt = DateTime.UtcNow
         };
 
-        // Mark invite as used if one was provided
         if (invite != null)
         {
             invite.IsUsed = true;
@@ -87,18 +82,105 @@ public class AuthService : IAuthService
         await _unitOfWork.Users.AddAsync(user);
         await _unitOfWork.CompleteAsync();
 
-        var token = _jwtTokenGenerator.GenerateToken(user);
+        return await GenerateAuthResponseAsync(user);
+    }
+
+    public async Task<AuthResponse> RefreshTokenAsync(string refreshToken)
+    {
+        // Find the refresh token
+        var tokens = await _unitOfWork.RefreshTokens.FindAsync(t => t.Token == refreshToken);
+        var token = tokens.FirstOrDefault();
+
+        if (token == null)
+            throw new UnauthorizedAccessException("Invalid refresh token.");
+
+        if (!token.IsActive)
+        {
+            if (token.IsExpired)
+                throw new UnauthorizedAccessException("Refresh token has expired. Please login again.");
+            else
+                throw new UnauthorizedAccessException("Refresh token has been revoked.");
+        }
+
+        // Get the user
+        var user = await _unitOfWork.Users.GetByIdAsync(token.UserId);
+        if (user == null || !user.IsActive)
+            throw new UnauthorizedAccessException("User not found or suspended.");
+
+        // Revoke old token and create new one (rotation)
+        token.RevokedAt = DateTime.UtcNow;
+        var newRefreshToken = await CreateRefreshTokenAsync(user.Id);
+        token.ReplacedByToken = newRefreshToken.Token;
         
-        return new AuthResponse(user.Id, user.Email, user.FirstName, user.LastName, token, user.Role.ToString());
+        await _unitOfWork.CompleteAsync();
+
+        // Generate new access token
+        var accessToken = _jwtTokenGenerator.GenerateToken(user);
+        var expiryMinutes = double.Parse(_configuration["JwtSettings:ExpiryMinutes"]!);
+
+        return new AuthResponse(
+            user.Id,
+            user.Email,
+            user.FirstName,
+            user.LastName,
+            accessToken,
+            newRefreshToken.Token,
+            user.Role.ToString(),
+            DateTime.UtcNow.AddMinutes(expiryMinutes)
+        );
+    }
+
+    public async Task RevokeTokenAsync(string refreshToken)
+    {
+        var tokens = await _unitOfWork.RefreshTokens.FindAsync(t => t.Token == refreshToken);
+        var token = tokens.FirstOrDefault();
+
+        if (token != null && token.IsActive)
+        {
+            token.RevokedAt = DateTime.UtcNow;
+            await _unitOfWork.CompleteAsync();
+        }
+    }
+
+    private async Task<AuthResponse> GenerateAuthResponseAsync(User user)
+    {
+        var accessToken = _jwtTokenGenerator.GenerateToken(user);
+        var refreshToken = await CreateRefreshTokenAsync(user.Id);
+        var expiryMinutes = double.Parse(_configuration["JwtSettings:ExpiryMinutes"]!);
+
+        return new AuthResponse(
+            user.Id,
+            user.Email,
+            user.FirstName,
+            user.LastName,
+            accessToken,
+            refreshToken.Token,
+            user.Role.ToString(),
+            DateTime.UtcNow.AddMinutes(expiryMinutes)
+        );
+    }
+
+    private async Task<RefreshToken> CreateRefreshTokenAsync(Guid userId)
+    {
+        var refreshTokenDays = double.Parse(_configuration["JwtSettings:RefreshTokenExpiryDays"] ?? "7");
+        
+        var refreshToken = new RefreshToken
+        {
+            Token = _jwtTokenGenerator.GenerateRefreshToken(),
+            UserId = userId,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(refreshTokenDays)
+        };
+
+        await _unitOfWork.RefreshTokens.AddAsync(refreshToken);
+        return refreshToken;
     }
 
     public async Task<string> FixSuperAdminPasswordAsync()
     {
-        // Find super admin by role (more reliable than email)
         var allUsers = await _unitOfWork.Users.GetAllAsync();
         var superAdmin = allUsers.FirstOrDefault(u => u.Role == UserRole.SuperAdmin);
         
-        // Fallback: try email with case-insensitive search
         if (superAdmin == null)
         {
             superAdmin = allUsers.FirstOrDefault(u => 
@@ -107,15 +189,11 @@ public class AuthService : IAuthService
         
         if (superAdmin == null)
         {
-            throw new Exception($"Super Admin not found. Found {allUsers.Count()} users in database. Please check if any user has SuperAdmin role.");
+            throw new Exception($"Super Admin not found. Found {allUsers.Count()} users in database.");
         }
 
         var oldEmail = superAdmin.Email;
-        
-        // Fix email to standard value
         superAdmin.Email = "superadmin@tribe.com";
-        
-        // Regenerate the password hash properly
         superAdmin.PasswordHash = _passwordHasher.Hash("Password123!");
         
         _unitOfWork.Users.Update(superAdmin);

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TheTribe.Application.DTOs;
 using TheTribe.Application.DTOs.Auth;
@@ -24,9 +25,13 @@ public class AuthController : ControllerBase
             var response = await _authService.LoginAsync(request);
             return Ok(ApiResponse<AuthResponse>.Ok(response, "Login successful"));
         }
-        catch (Exception ex)
+        catch (UnauthorizedAccessException ex)
         {
             return Unauthorized(ApiResponse<AuthResponse>.Fail(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<AuthResponse>.Fail(ex.Message));
         }
     }
 
@@ -45,8 +50,36 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Refresh access token using a valid refresh token.
+    /// Call this before the access token expires to stay logged in.
+    /// </summary>
+    [HttpPost("refresh")]
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> RefreshToken(RefreshTokenRequest request)
+    {
+        try
+        {
+            var response = await _authService.RefreshTokenAsync(request.RefreshToken);
+            return Ok(ApiResponse<AuthResponse>.Ok(response, "Token refreshed successfully"));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<AuthResponse>.Fail(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Revoke a refresh token (logout).
+    /// </summary>
+    [HttpPost("revoke")]
+    [Authorize]
+    public async Task<IActionResult> RevokeToken(RefreshTokenRequest request)
+    {
+        await _authService.RevokeTokenAsync(request.RefreshToken);
+        return Ok(ApiResponse.Ok("Token revoked successfully"));
+    }
+
+    /// <summary>
     /// ONE-TIME FIX: Regenerates the super admin password hash.
-    /// Call this endpoint once if the super admin login fails due to corrupted password hash.
     /// Remove this endpoint after use in production.
     /// </summary>
     [HttpPost("fix-superadmin")]

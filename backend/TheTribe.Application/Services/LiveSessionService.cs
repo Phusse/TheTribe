@@ -141,13 +141,14 @@ public class LiveSessionService : ILiveSessionService
         );
     }
 
-    public async Task<bool> DeleteSessionAsync(Guid id)
+    public async Task<string?> DeleteSessionAsync(Guid id)
     {
         var session = await _unitOfWork.LiveSessions.GetByIdAsync(id);
-        if (session == null) return false;
+        if (session == null) return null;
 
+        var title = session.Title;
         _unitOfWork.LiveSessions.Remove(session);
         await _unitOfWork.CompleteAsync();
-        return true;
+        return title;
     }
 }

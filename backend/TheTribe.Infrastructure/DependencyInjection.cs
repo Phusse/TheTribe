@@ -6,6 +6,7 @@ using TheTribe.Application.Interfaces.Repositories;
 using TheTribe.Infrastructure.Authentication;
 using TheTribe.Infrastructure.Persistence;
 using TheTribe.Infrastructure.Repositories;
+using Microsoft.AspNetCore.Http;
 
 namespace TheTribe.Infrastructure;
 
@@ -60,7 +61,6 @@ public static class DependencyInjection
                     var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
                     if (!string.IsNullOrEmpty(authHeader))
                     {
-                        // If token doesn't start with "Bearer ", treat the whole value as the token
                         if (!authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                         {
                             context.Token = authHeader;
@@ -68,6 +68,38 @@ public static class DependencyInjection
                     }
 
                     return Task.CompletedTask;
+                },
+                
+                OnAuthenticationFailed = context =>
+                {
+                    if (context.Exception is Microsoft.IdentityModel.Tokens.SecurityTokenExpiredException)
+                    {
+                        context.Response.Headers["Token-Expired"] = "true";
+                    }
+                    return Task.CompletedTask;
+                },
+                
+                OnChallenge = async context =>
+                {
+                    // Skip default behavior
+                    context.HandleResponse();
+                    
+                    context.Response.StatusCode = 401;
+                    context.Response.ContentType = "application/json";
+                    
+                    var message = "Unauthorized";
+                    if (context.AuthenticateFailure is Microsoft.IdentityModel.Tokens.SecurityTokenExpiredException)
+                    {
+                        message = "Token has expired. Please refresh your token or login again.";
+                    }
+                    else if (context.AuthenticateFailure != null)
+                    {
+                        message = "Invalid token.";
+                    }
+                    
+                    var response = new { message, data = (object?)null, success = false };
+                    var json = System.Text.Json.JsonSerializer.Serialize(response);
+                    await context.Response.WriteAsync(json);
                 }
             };
         });

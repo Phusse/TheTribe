@@ -41,6 +41,25 @@ public class ChatRoomController : ControllerBase
         return Ok(ApiResponse.Ok(result, "Chat rooms retrieved successfully"));
     }
 
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetRoom(Guid id)
+    {
+        var userId = GetUserId();
+        try
+        {
+            var room = await _chatRoomService.GetRoomAsync(id, userId);
+            return Ok(ApiResponse.Ok(room, "Chat room retrieved successfully"));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse.Fail(ex.Message));
+        }
+    }
+
     [HttpPost("{id}/members")]
     public async Task<IActionResult> AddMember(Guid id, AddMemberRequest request)
     {

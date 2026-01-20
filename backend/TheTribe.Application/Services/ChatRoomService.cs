@@ -170,4 +170,20 @@ public class ChatRoomService : IChatRoomService
         var membership = await _unitOfWork.ChatRoomMembers.FindAsync(m => m.ChatRoomId == chatRoomId && m.UserId == userId);
         return membership.Any();
     }
+
+    public async Task<ChatRoomResponse> GetRoomAsync(Guid chatRoomId, Guid requestingUserId)
+    {
+        // Verify Membership
+        var isMember = await IsMemberAsync(chatRoomId, requestingUserId);
+        if (!isMember)
+            throw new UnauthorizedAccessException("You are not a member of this room.");
+
+        var room = await _unitOfWork.ChatRooms.GetByIdAsync(chatRoomId);
+        if (room == null) throw new KeyNotFoundException("Room not found.");
+
+        var creator = await _unitOfWork.Users.GetByIdAsync(room.CreatedByUserId);
+        var creatorName = creator != null ? $"{creator.FirstName} {creator.LastName}" : "Unknown";
+
+        return new ChatRoomResponse(room.Id, room.Name, room.Description, room.ProfilePhotoUrl, room.CreatedByUserId, creatorName, room.CreatedAt);
+    }
 }
