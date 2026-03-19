@@ -1,6 +1,0 @@
-@TheTribe.Api_HostAddress = http://localhost:5290
-
-GET {{TheTribe.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
