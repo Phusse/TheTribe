@@ -1,0 +1,134 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 8% 8%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 8% 8%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 46 65% 52%;
+    --primary-foreground: 240 10% 4%;
+
+    --secondary: 240 5% 15%;
+    --secondary-foreground: 0 0% 85%;
+
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 45%;
+
+    --accent: 46 65% 15%;
+    --accent-foreground: 46 65% 70%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 100% / 0.08;
+    --input: 240 5% 18%;
+    --ring: 46 65% 52%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 240 10% 5%;
+    --sidebar-foreground: 0 0% 75%;
+    --sidebar-primary: 46 65% 52%;
+    --sidebar-primary-foreground: 240 10% 4%;
+    --sidebar-accent: 240 5% 12%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 100% / 0.05;
+    --sidebar-ring: 46 65% 52%;
+
+    /* Custom tokens */
+    --gold: 46 65% 52%;
+    --gold-dim: 46 65% 15%;
+    --gold-glow: 46 65% 52%;
+    --obsidian: 240 10% 4%;
+    --surface: 240 8% 8%;
+    --surface-hover: 240 5% 12%;
+    --steel: 240 5% 15%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cinzel', Georgia, serif;
+    letter-spacing: 0.04em;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Cinzel', Georgia, serif;
+    letter-spacing: 0.04em;
+  }
+
+  .font-body {
+    font-family: 'Raleway', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .section-label {
+    @apply text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground font-body;
+  }
+
+  .shadow-vault {
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 8px 16px -4px rgba(0,0,0,0.5);
+  }
+
+  .shadow-vault-hover {
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 12px 24px -4px rgba(0,0,0,0.6);
+  }
+
+  .gold-glow {
+    box-shadow: 0 0 20px hsl(46 65% 52% / 0.3), 0 0 0 1px hsl(46 65% 52% / 0.5);
+  }
+
+  .surface-card {
+    @apply bg-card rounded-xl shadow-vault;
+  }
+
+  @keyframes gold-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(46 65% 52% / 0.2); }
+    50% { box-shadow: 0 0 20px 4px hsl(46 65% 52% / 0.15); }
+  }
+
+  .animate-gold-pulse {
+    animation: gold-pulse 1.5s ease-in-out infinite;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
