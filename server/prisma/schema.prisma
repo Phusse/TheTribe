@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MEMBER
+  ADMIN
+  SUPERADMIN
+}
+
+model User {
+  id              String   @id @default(cuid())
+  firstName       String
+  lastName        String
+  email           String   @unique
+  passwordHash    String
+  role            Role     @default(MEMBER)
+  isActive        Boolean  @default(true)
+  profilePhotoUrl String?
+  pledgeAccepted  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sentMessages     Message[]      @relation("MessageSender")
+  receivedMessages Message[]      @relation("MessageReceiver")
+  sentRequests     Connection[]   @relation("ConnectionRequester")
+  receivedRequests Connection[]   @relation("ConnectionReceiver")
+  groupMemberships GroupMember[]
+  groupMessages    GroupMessage[]
+  progress         TrainingProgress[]
+  invitesCreated   InviteCode[]   @relation("InviteCreator")
+  inviteUsed       InviteCode?    @relation("InviteUser")
+  settings         UserSettings?
+  refreshTokens    RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TrainingModule {
+  id        String   @id @default(cuid())
+  title     String
+  category  String
+  duration  String
+  order     Int
+  createdAt DateTime @default(now())
+
+  lessons  Lesson[]
+  progress TrainingProgress[]
+}
+
+model Lesson {
+  id       String @id @default(cuid())
+  title    String
+  duration String
+  order    Int
+
+  moduleId String
+  module   TrainingModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+}
+
+model TrainingProgress {
+  id          String    @id @default(cuid())
+  progress    Int       @default(0)
+  completedAt DateTime?
+
+  userId   String
+  moduleId String
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module   TrainingModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+}
+
+model LiveSession {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  date        DateTime
+  time        String
+  meetingUrl  String?
+  createdAt   DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  text      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  senderId   String
+  receiverId String
+  sender     User   @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User   @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  createdAt   DateTime @default(now())
+
+  members  GroupMember[]
+  messages GroupMessage[]
+}
+
+model GroupMember {
+  id      String @id @default(cuid())
+  userId  String
+  groupId String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+}
+
+model GroupMessage {
+  id        String   @id @default(cuid())
+  text      String
+  createdAt DateTime @default(now())
+
+  userId  String
+  groupId String
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model Connection {
+  id        String   @id @default(cuid())
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  requesterId String
+  receiverId  String
+  requester   User   @relation("ConnectionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver    User   @relation("ConnectionReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+}
+
+model InviteCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  createdById String
+  usedById    String? @unique
+  createdBy   User    @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  usedBy      User?   @relation("InviteUser", fields: [usedById], references: [id])
+}
+
+model UserSettings {
+  id                  String  @id @default(cuid())
+  pushNotifications   Boolean @default(true)
+  emailDigest         Boolean @default(true)
+  darkMode            Boolean @default(true)
+  showOnlineStatus    Boolean @default(true)
+  twoFactorEnabled    Boolean @default(false)
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
