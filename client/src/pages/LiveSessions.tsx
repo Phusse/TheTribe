@@ -1,72 +1,127 @@
 import { motion } from "framer-motion";
-import { Video, ExternalLink, Clock } from "lucide-react";
+import { Video, ExternalLink, Clock, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { format, differenceInDays } from "date-fns";
 
 const vaultTransition = { duration: 0.4, ease: [0.2, 0, 0, 1] as const };
 
-const sessions = [
-  { id: 1, title: "Mastering Emotional Intelligence", desc: "Deep dive into self-awareness and empathy as tools for leadership.", date: "March 21, 2026", time: "7:00 PM EST", upcoming: true, daysUntil: 2 },
-  { id: 2, title: "The Discipline of Daily Habits", desc: "Building systems that compound over time.", date: "March 28, 2026", time: "7:00 PM EST", upcoming: true, daysUntil: 9 },
-  { id: 3, title: "Financial Freedom Masterclass", desc: "Investment principles for long-term wealth.", date: "March 14, 2026", time: "7:00 PM EST", upcoming: false },
-  { id: 4, title: "Brotherhood & Accountability", desc: "The power of community in personal growth.", date: "March 7, 2026", time: "7:00 PM EST", upcoming: false },
-];
+interface Session {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  meetingUrl?: string;
+  upcoming: boolean;
+}
 
-const LiveSessions = () => (
-  <div className="flex flex-col gap-6 lg:gap-8">
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={vaultTransition}>
-      <h1 className="font-display text-foreground text-2xl lg:text-3xl">Live Sessions</h1>
-      <p className="text-muted-foreground text-sm font-body mt-1">Mentor-led sessions for real-time growth.</p>
-    </motion.div>
+const LiveSessions = () => {
+  const { data: sessions, isLoading, error } = useQuery({
+    queryKey: ["sessions"],
+    queryFn: async () => {
+      const res = await api.get("/sessions");
+      return res.data as Session[];
+    },
+  });
 
-    {/* Upcoming */}
-    <div>
-      <p className="section-label mb-4">Upcoming</p>
-      <div className="flex flex-col gap-4">
-        {sessions.filter(s => s.upcoming).map((s, i) => (
-          <motion.div
-            key={s.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...vaultTransition, delay: 0.05 * i }}
-            className="surface-card p-4 lg:p-6 flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between hover:shadow-vault-hover transition-all duration-200"
-          >
-            <div className="flex items-start sm:items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <Video className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-display text-foreground text-base lg:text-lg">{s.title}</h3>
-                <p className="text-muted-foreground text-xs font-body mt-0.5">{s.desc}</p>
-                <span className="text-xs font-body text-muted-foreground tabular-nums mt-1 block">{s.date} · {s.time}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 sm:gap-4 shrink-0 ml-14 sm:ml-0">
-              <span className="text-primary text-sm font-body font-medium tabular-nums">{s.daysUntil} days</span>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary text-xs font-body font-medium hover:bg-primary/20 transition-colors">
-                <ExternalLink className="w-3.5 h-3.5" />
-                Join
-              </button>
-            </div>
-          </motion.div>
-        ))}
+  if (isLoading) {
+    return (
+      <div className="flex justify-center p-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
-    </div>
+    );
+  }
 
-    {/* Past */}
-    <div>
-      <p className="section-label mb-4">Past Sessions</p>
-      <div className="flex flex-col gap-3">
-        {sessions.filter(s => !s.upcoming).map((s) => (
-          <div key={s.id} className="surface-card p-4 lg:p-5 flex items-center gap-4 opacity-60">
-            <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
-            <div>
-              <p className="text-foreground text-sm font-body font-medium">{s.title}</p>
-              <p className="text-muted-foreground text-xs font-body tabular-nums">{s.date}</p>
-            </div>
+  if (error) {
+    return <div className="text-destructive p-4">Failed to load sessions.</div>;
+  }
+
+  const upcomingSessions = sessions?.filter((s) => s.upcoming) || [];
+  const pastSessions = sessions?.filter((s) => !s.upcoming) || [];
+
+  return (
+    <div className="flex flex-col gap-6 lg:gap-8">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={vaultTransition}>
+        <h1 className="font-display text-foreground text-2xl lg:text-3xl">Live Sessions</h1>
+        <p className="text-muted-foreground text-sm font-body mt-1">Mentor-led sessions for real-time growth.</p>
+      </motion.div>
+
+      {/* Upcoming */}
+      <div>
+        <p className="section-label mb-4">Upcoming</p>
+        {upcomingSessions.length === 0 ? (
+          <p className="text-muted-foreground text-sm font-body italic">No upcoming sessions scheduled.</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {upcomingSessions.map((s, i) => {
+              const daysUntil = differenceInDays(new Date(s.date), new Date());
+              return (
+                <motion.div
+                  key={s.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...vaultTransition, delay: 0.05 * i }}
+                  className="surface-card p-4 lg:p-6 flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between hover:shadow-vault-hover transition-all duration-200"
+                >
+                  <div className="flex items-start sm:items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Video className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-display text-foreground text-base lg:text-lg">{s.title}</h3>
+                      <p className="text-muted-foreground text-xs font-body mt-0.5">{s.description}</p>
+                      <span className="text-xs font-body text-muted-foreground tabular-nums mt-1 block">
+                        {format(new Date(s.date), "MMMM d, yyyy")} · {s.time}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 sm:gap-4 shrink-0 ml-14 sm:ml-0">
+                    <span className="text-primary text-sm font-body font-medium tabular-nums">
+                      {daysUntil === 0 ? "Today" : `${daysUntil} days`}
+                    </span>
+                    <a 
+                      href={s.meetingUrl || "#"} 
+                      target={s.meetingUrl ? "_blank" : "_self"} 
+                      rel="noreferrer"
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-body font-medium transition-colors ${
+                        s.meetingUrl 
+                          ? "bg-primary/10 text-primary hover:bg-primary/20" 
+                          : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
+                      }`}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Join
+                    </a>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
-        ))}
+        )}
       </div>
+
+      {/* Past */}
+      {pastSessions.length > 0 && (
+        <div>
+          <p className="section-label mb-4">Past Sessions</p>
+          <div className="flex flex-col gap-3">
+            {pastSessions.map((s) => (
+              <div key={s.id} className="surface-card p-4 lg:p-5 flex items-center gap-4 opacity-60">
+                <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-foreground text-sm font-body font-medium">{s.title}</p>
+                  <p className="text-muted-foreground text-xs font-body tabular-nums">
+                    {format(new Date(s.date), "MMMM d, yyyy")}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 export default LiveSessions;

@@ -4,6 +4,7 @@ export interface Lesson {
     duration: string;
     order: number;
     moduleId: string;
+    content?: string;
     locked?: boolean;
 }
 
@@ -13,7 +14,9 @@ export interface TrainingModule {
     category: string;
     duration: string;
     order: number;
+    published: boolean;
     lessons: Lesson[];
+    enrolledCount?: number;
 }
 
 export interface TrainingProgress {

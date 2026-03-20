@@ -10,7 +10,7 @@ import { UpdateSettingsInput } from "@thetribe/shared";
 const vaultTransition = { duration: 0.4, ease: [0.2, 0, 0, 1] as const };
 
 const Settings = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const queryClient = useQueryClient();
 
   // These will map to the backend `UserSettings` model.
@@ -207,6 +207,23 @@ const Settings = () => {
               ))}
             </div>
           </div>
+        </div>
+      </motion.div>
+
+      {/* Danger Zone */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...vaultTransition, delay: 0.25 }}
+        className="surface-card overflow-hidden mt-4"
+      >
+        <div className="px-5 py-4">
+          <button
+            onClick={() => logout()}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-destructive/10 text-destructive text-sm font-body font-medium hover:bg-destructive/20 transition-colors"
+          >
+            Sign Out
+          </button>
         </div>
       </motion.div>
     </div>

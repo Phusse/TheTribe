@@ -1,116 +1,95 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Search, ArrowLeft, CheckCheck, Smile } from "lucide-react";
+import { Send, Search, ArrowLeft, Loader2, Smile } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { format } from "date-fns";
 
 const vaultTransition = { duration: 0.3, ease: [0.2, 0, 0, 1] as const };
 
-const initialConversations = [
-  { id: "1", name: "David Chen", lastMsg: "Let's connect on the finance module", time: "2m", unread: 2, avatar: "DC", online: true },
-  { id: "2", name: "James Wright", lastMsg: "Great session today, brother", time: "1h", unread: 0, avatar: "JW", online: true },
-  { id: "3", name: "Alex Rivera", lastMsg: "I'll send you the resources", time: "3h", unread: 1, avatar: "AR", online: false },
-  { id: "4", name: "Michael Torres", lastMsg: "See you at the next live session", time: "1d", unread: 0, avatar: "MT", online: false },
-  { id: "5", name: "Ryan Patel", lastMsg: "Thanks for the advice on leadership", time: "2d", unread: 0, avatar: "RP", online: false },
-];
+interface Partner {
+  id: string;
+  firstName: string;
+  lastName: string;
+  profilePhotoUrl?: string;
+  isActive: boolean;
+}
 
-const initialMessages: Record<string, { id: number; sender: string; text: string; time: string; status?: string }[]> = {
-  "1": [
-    { id: 1, sender: "them", text: "Hey Marcus, really enjoyed the leadership module.", time: "10:30 AM" },
-    { id: 2, sender: "me", text: "Thanks David! The section on emotional intelligence resonated with me the most.", time: "10:32 AM", status: "read" },
-    { id: 3, sender: "them", text: "Absolutely. Want to connect on the finance module next? I think we could hold each other accountable.", time: "10:35 AM" },
-    { id: 4, sender: "them", text: "Let's connect on the finance module", time: "10:36 AM" },
-  ],
-  "2": [
-    { id: 1, sender: "them", text: "That live session was incredible. Really opened my eyes.", time: "3:15 PM" },
-    { id: 2, sender: "me", text: "Same here. The mentor's breakdown of discipline vs motivation hit different.", time: "3:18 PM", status: "read" },
-    { id: 3, sender: "them", text: "Great session today, brother", time: "3:20 PM" },
-  ],
-  "3": [
-    { id: 1, sender: "me", text: "Hey Alex, do you have those resources from last week's session?", time: "9:00 AM", status: "delivered" },
-    { id: 2, sender: "them", text: "I'll send you the resources", time: "9:45 AM" },
-  ],
-};
+interface Conversation {
+  partner: Partner;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
+}
+
+interface Message {
+  id: string;
+  text: string;
+  senderId: string;
+  createdAt: string;
+}
+
+// Helper to extract initials
+const getInitials = (first: string, last: string) => `${first[0] || ""}${last[0] || ""}`.toUpperCase();
 
 const Messages = () => {
-  const [selected, setSelected] = useState<string | null>(null);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
   const [newMsg, setNewMsg] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [allMessages, setAllMessages] = useState(initialMessages);
-  const [conversations, setConversations] = useState(initialConversations);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const active = conversations.find((c) => c.id === selected);
-  const messages = selected ? allMessages[selected] || [] : [];
+  // 1. Fetch Conversations
+  const { data: conversations, isLoading: loadingConvos } = useQuery({
+    queryKey: ["conversations"],
+    queryFn: async () => {
+      const res = await api.get("/messages/conversations");
+      return res.data as Conversation[];
+    },
+    refetchInterval: 5000, // naive polling fallback for realtime until socket is built
+  });
 
-  const filteredConversations = conversations.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // 2. Fetch Chat History if a partner is selected
+  const { data: messages, isLoading: loadingMessages } = useQuery({
+    queryKey: ["messages", selectedPartnerId],
+    queryFn: async () => {
+      if (!selectedPartnerId) return [];
+      const res = await api.get(`/messages/${selectedPartnerId}/history`);
+      return res.data as Message[];
+    },
+    enabled: !!selectedPartnerId,
+    refetchInterval: 3000, // naive polling fallback
+  });
+
+  // 3. Send Message Mutation
+  const { mutate: sendMessage, isPending: isSending } = useMutation({
+    mutationFn: async (text: string) => {
+      if (!selectedPartnerId) return;
+      await api.post(`/messages/${selectedPartnerId}`, { text });
+    },
+    onSuccess: () => {
+      setNewMsg("");
+      queryClient.invalidateQueries({ queryKey: ["messages", selectedPartnerId] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+    onError: () => toast.error("Failed to send message"),
+  });
+
+  const activeConvo = conversations?.find((c) => c.partner.id === selectedPartnerId);
+  const filteredConversations = conversations?.filter((c) =>
+    `${c.partner.firstName} ${c.partner.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [selected, messages.length]);
-
-  // Clear unread when opening a conversation
-  useEffect(() => {
-    if (selected) {
-      setConversations((prev) =>
-        prev.map((c) => (c.id === selected ? { ...c, unread: 0 } : c))
-      );
-    }
-  }, [selected]);
+  }, [selectedPartnerId, messages?.length]);
 
   const handleSend = () => {
-    if (!newMsg.trim() || !selected) return;
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    const msg = { id: Date.now(), sender: "me", text: newMsg.trim(), time: timeStr, status: "sent" };
-
-    setAllMessages((prev) => ({
-      ...prev,
-      [selected]: [...(prev[selected] || []), msg],
-    }));
-
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === selected ? { ...c, lastMsg: newMsg.trim(), time: "now" } : c
-      )
-    );
-
-    setNewMsg("");
-
-    // Simulate "delivered" after 1s, then a reply after 2-3s
-    setTimeout(() => {
-      setAllMessages((prev) => ({
-        ...prev,
-        [selected]: (prev[selected] || []).map((m) =>
-          m.id === msg.id ? { ...m, status: "delivered" } : m
-        ),
-      }));
-    }, 1000);
-
-    setTimeout(() => {
-      const replies = [
-        "That's a great point, brother.",
-        "I completely agree with you on that.",
-        "Let's discuss this more at the next session.",
-        "Appreciate you sharing that. 💪",
-        "For sure, I'm on the same page.",
-      ];
-      const reply = {
-        id: Date.now() + 1,
-        sender: "them",
-        text: replies[Math.floor(Math.random() * replies.length)],
-        time: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-      };
-      setAllMessages((prev) => ({
-        ...prev,
-        [selected]: [...(prev[selected] || []), reply],
-      }));
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === selected ? { ...c, lastMsg: reply.text, time: "now" } : c
-        )
-      );
-    }, 2000 + Math.random() * 2000);
+    if (!newMsg.trim() || !selectedPartnerId) return;
+    sendMessage(newMsg.trim());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -121,12 +100,12 @@ const Messages = () => {
   };
 
   return (
-    <div className="fixed inset-0 md:left-[280px] bottom-[60px] md:bottom-0 flex flex-col bg-background">
+    <div className="fixed inset-0 md:left-[280px] bottom-[60px] md:bottom-0 flex flex-col bg-background z-[40]">
       <div className="flex flex-1 min-h-0">
         {/* Conversation List */}
         <div
           className={`w-full sm:w-80 shrink-0 flex flex-col border-r border-border bg-card ${
-            selected ? "hidden sm:flex" : "flex"
+            selectedPartnerId ? "hidden sm:flex" : "flex"
           }`}
         >
           <div className="px-4 pt-5 pb-2">
@@ -144,124 +123,156 @@ const Messages = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto no-scrollbar">
-            {filteredConversations.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelected(c.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 ${
-                  selected === c.id ? "bg-muted/60" : "hover:bg-muted/30"
-                }`}
-              >
-                <div className="relative">
-                  <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center shrink-0">
-                    <span className="text-xs font-body font-semibold text-muted-foreground">{c.avatar}</span>
+            {loadingConvos ? (
+              <div className="flex justify-center p-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="p-4 text-center text-sm text-muted-foreground">No conversations found. Have someone connect with you first!</div>
+            ) : (
+              filteredConversations.map((c) => (
+                <button
+                  key={c.partner.id}
+                  onClick={() => setSelectedPartnerId(c.partner.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 border-b border-border/40 ${
+                    selectedPartnerId === c.partner.id ? "bg-muted/60" : "hover:bg-muted/30"
+                  }`}
+                >
+                  <div className="relative">
+                    <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                      {c.partner.profilePhotoUrl ? (
+                         <img src={c.partner.profilePhotoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xs font-body font-semibold text-muted-foreground">
+                          {getInitials(c.partner.firstName, c.partner.lastName)}
+                        </span>
+                      )}
+                    </div>
+                    {c.partner.isActive && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[hsl(142_71%_45%)] border-2 border-card" />
+                    )}
                   </div>
-                  {c.online && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[hsl(142_71%_45%)] border-2 border-card" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm font-body truncate ${c.unread > 0 ? "font-bold text-foreground" : "font-semibold text-foreground"}`}>{c.name}</span>
-                    <span className={`text-[11px] font-body tabular-nums shrink-0 ml-2 ${c.unread > 0 ? "text-primary font-semibold" : "text-muted-foreground/50"}`}>
-                      {c.time}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm font-body truncate ${c.unreadCount > 0 ? "font-bold text-foreground" : "font-semibold text-foreground"}`}>
+                        {c.partner.firstName} {c.partner.lastName}
+                      </span>
+                      <span className={`text-[11px] font-body tabular-nums shrink-0 ml-2 ${c.unreadCount > 0 ? "text-primary font-semibold" : "text-muted-foreground/50"}`}>
+                        {format(new Date(c.lastMessageAt), "h:mm a")}
+                      </span>
+                    </div>
+                    <p className={`text-xs font-body truncate mt-0.5 ${c.unreadCount > 0 ? "text-foreground/80 font-medium" : "text-muted-foreground/60"}`}>
+                      {c.lastMessage || "Started a conversation"}
+                    </p>
+                  </div>
+                  {c.unreadCount > 0 && (
+                    <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-body font-bold flex items-center justify-center shrink-0">
+                      {c.unreadCount}
                     </span>
-                  </div>
-                  <p className={`text-xs font-body truncate mt-0.5 ${c.unread > 0 ? "text-foreground/80 font-medium" : "text-muted-foreground/60"}`}>{c.lastMsg}</p>
-                </div>
-                {c.unread > 0 && (
-                  <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-body font-bold flex items-center justify-center shrink-0">
-                    {c.unread}
-                  </span>
-                )}
-              </button>
-            ))}
+                  )}
+                </button>
+              ))
+            )}
           </div>
         </div>
 
         {/* Chat Thread */}
         <AnimatePresence mode="wait">
-          {active ? (
+          {activeConvo ? (
             <motion.div
-              key={active.id}
+              key={activeConvo.partner.id}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={vaultTransition}
-              className={`flex-1 flex flex-col min-h-0 bg-background ${selected ? "flex" : "hidden sm:flex"}`}
+              className={`flex-1 flex flex-col min-h-0 bg-background ${selectedPartnerId ? "flex" : "hidden sm:flex"}`}
             >
               {/* Chat header */}
               <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card shrink-0">
                 <button
-                  onClick={() => setSelected(null)}
+                  onClick={() => setSelectedPartnerId(null)}
                   className="sm:hidden w-8 h-8 rounded-full hover:bg-muted/50 flex items-center justify-center transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4 text-foreground" />
                 </button>
                 <div className="relative">
-                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
-                    <span className="text-xs font-body font-semibold text-muted-foreground">{active.avatar}</span>
+                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                    {activeConvo.partner.profilePhotoUrl ? (
+                      <img src={activeConvo.partner.profilePhotoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xs font-body font-semibold text-muted-foreground">
+                        {getInitials(activeConvo.partner.firstName, activeConvo.partner.lastName)}
+                      </span>
+                    )}
                   </div>
-                  {active.online && (
+                  {activeConvo.partner.isActive && (
                     <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[hsl(142_71%_45%)] border-2 border-card" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <span className="text-sm font-body font-semibold text-foreground">{active.name}</span>
+                  <span className="text-sm font-body font-semibold text-foreground">
+                    {activeConvo.partner.firstName} {activeConvo.partner.lastName}
+                  </span>
                   <p className="text-[11px] font-body text-muted-foreground/50">
-                    {active.online ? "online" : "last seen recently"}
+                    {activeConvo.partner.isActive ? "online" : "offline"}
                   </p>
                 </div>
               </div>
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-4 flex flex-col gap-0.5">
-                {messages.map((m, i) => {
-                  const isMe = m.sender === "me";
-                  const showAvatar = !isMe && (i === 0 || messages[i - 1].sender !== "them");
-                  const isLast = i === messages.length - 1 || messages[i + 1]?.sender !== m.sender;
+                {loadingMessages ? (
+                  <div className="flex flex-1 items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !messages || messages.length === 0 ? (
+                  <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground italic">
+                    No messages yet. Say hello!
+                  </div>
+                ) : (
+                  messages.map((m, i) => {
+                    const isMe = m.senderId === user?.id;
+                    const showAvatar = !isMe && (i === 0 || messages[i - 1].senderId !== m.senderId);
+                    const isLast = i === messages.length - 1 || messages[i + 1]?.senderId !== m.senderId;
 
-                  return (
-                    <motion.div
-                      key={m.id}
-                      initial={m.id > 100 ? { opacity: 0, y: 8, scale: 0.95 } : false}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ duration: 0.2 }}
-                      className={`flex ${isMe ? "justify-end" : "justify-start"} ${isLast ? "mb-2.5" : "mb-0.5"}`}
-                    >
-                      {!isMe && (
-                        <div className="w-7 mr-2 shrink-0">
-                          {showAvatar && (
-                            <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center mt-1">
-                              <span className="text-[9px] font-body font-semibold text-muted-foreground">
-                                {active.avatar}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <div
-                        className={`max-w-[80%] px-3.5 py-2 text-[14px] font-body leading-relaxed ${
-                          isMe
-                            ? `bg-primary/15 text-foreground ${isLast ? "rounded-2xl rounded-br-sm" : "rounded-2xl"}`
-                            : `bg-card text-foreground ${isLast ? "rounded-2xl rounded-bl-sm" : "rounded-2xl"}`
-                        }`}
+                    return (
+                      <motion.div
+                        key={m.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`flex ${isMe ? "justify-end" : "justify-start"} ${isLast ? "mb-2.5" : "mb-0.5"}`}
                       >
-                        <p>{m.text}</p>
-                        <div className={`flex items-center gap-1 mt-0.5 ${isMe ? "justify-end" : ""}`}>
-                          <span className="text-[10px] text-muted-foreground/40 tabular-nums">{m.time}</span>
-                          {isMe && (
-                            <CheckCheck
-                              className={`w-3.5 h-3.5 ${
-                                m.status === "read" ? "text-primary" : "text-muted-foreground/40"
-                              }`}
-                            />
-                          )}
+                        {!isMe && (
+                          <div className="w-7 mr-2 shrink-0">
+                            {showAvatar && (
+                              <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center mt-1 overflow-hidden">
+                                {activeConvo.partner.profilePhotoUrl ? (
+                                  <img src={activeConvo.partner.profilePhotoUrl} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-[9px] font-body font-semibold text-muted-foreground">
+                                    {getInitials(activeConvo.partner.firstName, activeConvo.partner.lastName)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div
+                          className={`max-w-[80%] px-3.5 py-2 text-[14px] font-body leading-relaxed ${
+                            isMe
+                              ? `bg-primary/15 text-foreground ${isLast ? "rounded-2xl rounded-br-sm" : "rounded-2xl"}`
+                              : `bg-card text-foreground ${isLast ? "rounded-2xl rounded-bl-sm" : "rounded-2xl"}`
+                          }`}
+                        >
+                          <p>{m.text}</p>
+                          <div className={`flex items-center gap-1 mt-0.5 ${isMe ? "justify-end" : ""}`}>
+                            <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+                              {format(new Date(m.createdAt), "h:mm a")}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                      </motion.div>
+                    );
+                  })
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -276,18 +287,24 @@ const Messages = () => {
                     value={newMsg}
                     onChange={(e) => setNewMsg(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    disabled={isSending}
                     placeholder="Message..."
-                    className="flex-1 bg-muted/40 rounded-full px-4 py-2 text-sm font-body text-foreground placeholder:text-muted-foreground/30 outline-none border border-transparent focus:border-border/50 transition-colors"
+                    className="flex-1 bg-muted/40 rounded-full px-4 py-2 text-sm font-body text-foreground placeholder:text-muted-foreground/30 outline-none border border-transparent focus:border-border/50 transition-colors disabled:opacity-50"
                   />
                   <button
                     onClick={handleSend}
+                    disabled={isSending || !newMsg.trim()}
                     className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                      newMsg.trim()
+                      newMsg.trim() && !isSending
                         ? "bg-primary hover:brightness-110"
                         : "bg-muted/50"
                     }`}
                   >
-                    <Send className={`w-4 h-4 ${newMsg.trim() ? "text-primary-foreground" : "text-muted-foreground/40"}`} />
+                    {isSending ? (
+                      <Loader2 className="w-4 h-4 text-muted-foreground/40 animate-spin" />
+                    ) : (
+                      <Send className={`w-4 h-4 ${newMsg.trim() ? "text-primary-foreground" : "text-muted-foreground/40"}`} />
+                    )}
                   </button>
                 </div>
               </div>

@@ -1,33 +1,71 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Users, UserCog, Ban, Trash2, ChevronDown, Search } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Users, UserCog, Ban, ChevronDown, Search, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { format } from "date-fns";
+import { toast } from "sonner";
 
 const vaultTransition = { duration: 0.4, ease: [0.2, 0, 0, 1] as const };
 
-const mockUsers = [
-  { id: "1", name: "Marcus Johnson", email: "marcus@example.com", role: "superadmin" as const, status: "Active", joinedAt: "Jan 5, 2026", lastLogin: "Today" },
-  { id: "2", name: "David Chen", email: "david@example.com", role: "admin" as const, status: "Active", joinedAt: "Feb 12, 2026", lastLogin: "Yesterday" },
-  { id: "3", name: "James Wright", email: "james@example.com", role: "member" as const, status: "Active", joinedAt: "Feb 20, 2026", lastLogin: "3 days ago" },
-  { id: "4", name: "Alex Rivera", email: "alex@example.com", role: "member" as const, status: "Suspended", joinedAt: "Mar 1, 2026", lastLogin: "2 weeks ago" },
-  { id: "5", name: "Nathan Brooks", email: "nathan@example.com", role: "member" as const, status: "Active", joinedAt: "Mar 10, 2026", lastLogin: "1 day ago" },
-  { id: "6", name: "Omar Hassan", email: "omar@example.com", role: "member" as const, status: "Active", joinedAt: "Mar 14, 2026", lastLogin: "5h ago" },
-];
+interface AdminUserView {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: "MEMBER" | "ADMIN" | "SUPERADMIN";
+  isActive: boolean;
+  createdAt: string;
+}
 
 const roleColors: Record<string, string> = {
-  superadmin: "bg-destructive/10 text-destructive",
-  admin: "bg-primary/10 text-primary",
-  member: "bg-muted text-muted-foreground",
+  SUPERADMIN: "bg-destructive/10 text-destructive",
+  ADMIN: "bg-primary/10 text-primary",
+  MEMBER: "bg-muted text-muted-foreground",
 };
 
 const UserManagement = () => {
+  const queryClient = useQueryClient();
   const [roleDropdown, setRoleDropdown] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const { isSuperAdmin } = useAuth();
+  const { user: selfUser, isSuperAdmin } = useAuth();
 
-  const filtered = mockUsers.filter(
+  const { data: users, isLoading } = useQuery({
+    queryKey: ["admin-users"],
+    queryFn: async () => {
+      const res = await api.get("/admin/users");
+      return res.data as AdminUserView[];
+    },
+  });
+
+  const { mutate: changeRole } = useMutation({
+    mutationFn: async ({ id, role }: { id: string; role: string }) => {
+      await api.patch(`/admin/users/${id}/role`, { role });
+    },
+    onSuccess: () => {
+      toast.success("User role updated");
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      setRoleDropdown(null);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || "Failed to update role"),
+  });
+
+  const { mutate: toggleStatus } = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      await api.patch(`/admin/users/${id}/status`, { isActive });
+    },
+    onSuccess: () => {
+      toast.success("User status updated");
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || "Failed to update status"),
+  });
+
+  const validUsers = users || [];
+  const filtered = validUsers.filter(
     (u) =>
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      `${u.firstName} ${u.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -39,7 +77,7 @@ const UserManagement = () => {
           <h1 className="font-display text-foreground text-2xl">User Management</h1>
         </div>
         <p className="text-muted-foreground text-sm font-body mt-1">
-          {mockUsers.length} total users · {mockUsers.filter((u) => u.status === "Active").length} active
+          {validUsers.length} total users · {validUsers.filter((u) => u.isActive).length} active
         </p>
       </motion.div>
 
@@ -55,138 +93,149 @@ const UserManagement = () => {
         />
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Total Users", value: mockUsers.length },
-          { label: "Active", value: mockUsers.filter((u) => u.status === "Active").length },
-          { label: "Suspended", value: mockUsers.filter((u) => u.status === "Suspended").length },
-          { label: "Admins", value: mockUsers.filter((u) => u.role === "admin" || u.role === "superadmin").length },
-        ].map((s) => (
-          <div key={s.label} className="surface-card p-4">
-            <p className="text-xs font-body text-muted-foreground uppercase tracking-wider">{s.label}</p>
-            <p className="font-display text-foreground text-xl mt-1">{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Desktop table */}
-      <div className="hidden lg:block surface-card overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left px-6 py-3 section-label font-normal">Name</th>
-              <th className="text-left px-6 py-3 section-label font-normal">Email</th>
-              <th className="text-left px-6 py-3 section-label font-normal">Role</th>
-              <th className="text-left px-6 py-3 section-label font-normal">Status</th>
-              <th className="text-left px-6 py-3 section-label font-normal">Joined</th>
-              <th className="text-left px-6 py-3 section-label font-normal">Last Login</th>
-              {isSuperAdmin && <th className="text-left px-6 py-3 section-label font-normal">Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((u) => (
-              <tr key={u.id} className="border-b border-border last:border-0 hover:bg-surface-hover/50 transition-colors">
-                <td className="px-6 py-4 text-sm font-body text-foreground font-medium">{u.name}</td>
-                <td className="px-6 py-4 text-sm font-body text-muted-foreground">{u.email}</td>
-                <td className="px-6 py-4">
-                  <div className="relative">
-                    {isSuperAdmin ? (
-                      <button
-                        onClick={() => setRoleDropdown(roleDropdown === u.id ? null : u.id)}
-                        className={`text-xs font-body font-medium px-2.5 py-1 rounded-md inline-flex items-center gap-1 ${roleColors[u.role]}`}
-                      >
-                        {u.role === "superadmin" ? "SuperAdmin" : u.role === "admin" ? "Admin" : "Member"}
-                        <ChevronDown className="w-3 h-3" />
-                      </button>
-                    ) : (
-                      <span className={`text-xs font-body font-medium px-2.5 py-1 rounded-md ${roleColors[u.role]}`}>
-                        {u.role === "superadmin" ? "SuperAdmin" : u.role === "admin" ? "Admin" : "Member"}
-                      </span>
-                    )}
-                    {roleDropdown === u.id && (
-                      <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-lg shadow-vault z-20 py-1 min-w-[140px]">
-                        {(["member", "admin", "superadmin"] as const).map((r) => (
-                          <button
-                            key={r}
-                            onClick={() => setRoleDropdown(null)}
-                            className="w-full text-left px-3 py-2 text-xs font-body text-foreground hover:bg-surface-hover transition-colors"
-                          >
-                            {r === "superadmin" ? "SuperAdmin" : r === "admin" ? "Admin" : "Member"}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`text-xs font-body font-medium ${u.status === "Active" ? "text-primary" : "text-destructive"}`}>
-                    {u.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm font-body text-muted-foreground tabular-nums">{u.joinedAt}</td>
-                <td className="px-6 py-4 text-sm font-body text-muted-foreground tabular-nums">{u.lastLogin}</td>
-                {isSuperAdmin && (
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1">
-                      <button className="w-7 h-7 rounded-md hover:bg-surface-hover flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors" title="Change role">
-                        <UserCog className="w-3.5 h-3.5" />
-                      </button>
-                      <button className="w-7 h-7 rounded-md hover:bg-surface-hover flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors" title={u.status === "Active" ? "Suspend" : "Reactivate"}>
-                        <Ban className="w-3.5 h-3.5" />
-                      </button>
-                      <button className="w-7 h-7 rounded-md hover:bg-surface-hover flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors" title="Delete user">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                )}
-              </tr>
+      {isLoading ? (
+        <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+      ) : (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { label: "Total Users", value: validUsers.length },
+              { label: "Active", value: validUsers.filter((u) => u.isActive).length },
+              { label: "Suspended", value: validUsers.filter((u) => !u.isActive).length },
+              { label: "Admins", value: validUsers.filter((u) => u.role === "ADMIN" || u.role === "SUPERADMIN").length },
+            ].map((s) => (
+              <div key={s.label} className="surface-card p-4">
+                <p className="text-xs font-body text-muted-foreground uppercase tracking-wider">{s.label}</p>
+                <p className="font-display text-foreground text-xl mt-1">{s.value}</p>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
 
-      {/* Mobile cards */}
-      <div className="flex flex-col gap-3 lg:hidden">
-        {filtered.map((u) => (
-          <div key={u.id} className="surface-card p-4 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                  <span className="text-xs font-body font-semibold text-muted-foreground">
-                    {u.name.split(" ").map((n) => n[0]).join("")}
+          {/* Desktop table */}
+          <div className="hidden lg:block surface-card overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-6 py-3 section-label font-normal">Name</th>
+                  <th className="text-left px-6 py-3 section-label font-normal">Email</th>
+                  <th className="text-left px-6 py-3 section-label font-normal">Role</th>
+                  <th className="text-left px-6 py-3 section-label font-normal">Status</th>
+                  <th className="text-left px-6 py-3 section-label font-normal">Joined</th>
+                  {isSuperAdmin && <th className="text-left px-6 py-3 section-label font-normal">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((u) => (
+                  <tr key={u.id} className="border-b border-border last:border-0 hover:bg-surface-hover/50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-body text-foreground font-medium">{u.firstName} {u.lastName}</td>
+                    <td className="px-6 py-4 text-sm font-body text-muted-foreground">{u.email}</td>
+                    <td className="px-6 py-4">
+                      <div className="relative">
+                        {isSuperAdmin && selfUser?.id !== u.id ? (
+                          <button
+                            onClick={() => setRoleDropdown(roleDropdown === u.id ? null : u.id)}
+                            className={`text-xs font-body font-medium px-2.5 py-1 rounded-md inline-flex items-center gap-1 ${roleColors[u.role]}`}
+                          >
+                            {u.role === "SUPERADMIN" ? "SuperAdmin" : u.role === "ADMIN" ? "Admin" : "Member"}
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                        ) : (
+                          <span className={`text-xs font-body font-medium px-2.5 py-1 rounded-md inline-block ${roleColors[u.role]}`}>
+                            {u.role === "SUPERADMIN" ? "SuperAdmin" : u.role === "ADMIN" ? "Admin" : "Member"}
+                          </span>
+                        )}
+                        {roleDropdown === u.id && (
+                          <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-lg shadow-vault z-20 py-1 min-w-[140px]">
+                            {(["MEMBER", "ADMIN", "SUPERADMIN"] as const).map((r) => (
+                              <button
+                                key={r}
+                                onClick={() => changeRole({ id: u.id, role: r })}
+                                className="w-full text-left px-3 py-2 text-xs font-body text-foreground hover:bg-surface-hover transition-colors"
+                              >
+                                {r === "SUPERADMIN" ? "SuperAdmin" : r === "ADMIN" ? "Admin" : "Member"}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`text-xs font-body font-medium ${u.isActive ? "text-primary" : "text-destructive"}`}>
+                        {u.isActive ? "Active" : "Suspended"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-body text-muted-foreground tabular-nums">
+                      {format(new Date(u.createdAt), "MMM d, yyyy")}
+                    </td>
+                    {isSuperAdmin && (
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1">
+                          {selfUser?.id !== u.id && (
+                            <button 
+                              onClick={() => toggleStatus({ id: u.id, isActive: !u.isActive })}
+                              className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                                u.isActive ? "hover:bg-destructive/10 text-muted-foreground hover:text-destructive" : "hover:bg-primary/10 text-destructive hover:text-primary"
+                              }`} 
+                              title={u.isActive ? "Suspend" : "Reactivate"}
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="flex flex-col gap-3 lg:hidden">
+            {filtered.map((u) => (
+              <div key={u.id} className="surface-card p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+                      <span className="text-xs font-body font-semibold text-muted-foreground">
+                        {u.firstName[0]}{u.lastName[0]}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-body font-medium text-foreground">{u.firstName} {u.lastName}</p>
+                      <p className="text-xs font-body text-muted-foreground">{u.email}</p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-body font-medium px-2 py-0.5 rounded ${roleColors[u.role]}`}>
+                    {u.role === "SUPERADMIN" ? "SuperAdmin" : u.role === "ADMIN" ? "Admin" : "Member"}
                   </span>
                 </div>
-                <div>
-                  <p className="text-sm font-body font-medium text-foreground">{u.name}</p>
-                  <p className="text-xs font-body text-muted-foreground">{u.email}</p>
+                <div className="flex items-center justify-between text-xs font-body text-muted-foreground">
+                  <span className={u.isActive ? "text-primary" : "text-destructive"}>{u.isActive ? "Active" : "Suspended"}</span>
+                  <span>Joined {format(new Date(u.createdAt), "MMM d, yyyy")}</span>
                 </div>
+                {isSuperAdmin && selfUser?.id !== u.id && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-border">
+                    <button 
+                      onClick={() => changeRole({ id: u.id, role: u.role === "MEMBER" ? "ADMIN" : "MEMBER" })}
+                      className="flex-1 py-1.5 rounded-md bg-surface-hover text-xs font-body text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1"
+                    >
+                      <UserCog className="w-3 h-3" /> Toggle Admin
+                    </button>
+                    <button 
+                      onClick={() => toggleStatus({ id: u.id, isActive: !u.isActive })}
+                      className="flex-1 py-1.5 rounded-md bg-surface-hover text-xs font-body text-muted-foreground hover:text-destructive transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Ban className="w-3 h-3" /> {u.isActive ? "Suspend" : "Activate"}
+                    </button>
+                  </div>
+                )}
               </div>
-              <span className={`text-[10px] font-body font-medium px-2 py-0.5 rounded ${roleColors[u.role]}`}>
-                {u.role === "superadmin" ? "SuperAdmin" : u.role === "admin" ? "Admin" : "Member"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs font-body text-muted-foreground">
-              <span className={u.status === "Active" ? "text-primary" : "text-destructive"}>{u.status}</span>
-              <span>Joined {u.joinedAt}</span>
-            </div>
-            {isSuperAdmin && (
-              <div className="flex items-center gap-2 pt-2 border-t border-border">
-                <button className="flex-1 py-1.5 rounded-md bg-surface-hover text-xs font-body text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1">
-                  <UserCog className="w-3 h-3" /> Role
-                </button>
-                <button className="flex-1 py-1.5 rounded-md bg-surface-hover text-xs font-body text-muted-foreground hover:text-destructive transition-colors flex items-center justify-center gap-1">
-                  <Ban className="w-3 h-3" /> {u.status === "Active" ? "Suspend" : "Activate"}
-                </button>
-                <button className="py-1.5 px-3 rounded-md bg-surface-hover text-xs font-body text-muted-foreground hover:text-destructive transition-colors flex items-center justify-center">
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
-            )}
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 };

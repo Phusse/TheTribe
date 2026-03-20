@@ -22,7 +22,7 @@ export const joinGroupController = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    await groupsService.joinGroup(req.user!.sub, id);
+    await groupsService.joinGroup(req.user!.sub, id as string);
     sendSuccess(res, null, "Joined group");
   } catch (err: any) {
     if (err.code === "P2002") {
@@ -40,7 +40,7 @@ export const leaveGroupController = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    await groupsService.leaveGroup(req.user!.sub, id);
+    await groupsService.leaveGroup(req.user!.sub, id as string);
     sendSuccess(res, null, "Left group");
   } catch (err: any) {
     if (err.code === "P2025") {
@@ -58,7 +58,7 @@ export const getGroupMessagesController = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const messages = await groupsService.getGroupMessages(req.user!.sub, id);
+    const messages = await groupsService.getGroupMessages(req.user!.sub, id as string);
     sendSuccess(res, messages);
   } catch (err: any) {
     if (err.message.includes("member")) sendError(res, err.message, 403);
@@ -74,7 +74,7 @@ export const sendGroupMessageController = async (
   try {
     const { id } = req.params;
     const { text } = req.body;
-    const msg = await groupsService.sendGroupMessage(req.user!.sub, id, text);
+    const msg = await groupsService.sendGroupMessage(req.user!.sub, id as string, text);
     sendCreated(res, msg, "Message sent");
   } catch (err: any) {
     if (err.message.includes("member")) sendError(res, err.message, 403);

@@ -55,6 +55,7 @@ model TrainingModule {
   category  String
   duration  String
   order     Int
+  published Boolean  @default(false)
   createdAt DateTime @default(now())
 
   lessons  Lesson[]
@@ -62,10 +63,11 @@ model TrainingModule {
 }
 
 model Lesson {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   title    String
   duration String
   order    Int
+  content  String?
 
   moduleId String
   module   TrainingModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)

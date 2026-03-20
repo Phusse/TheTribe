@@ -36,7 +36,7 @@ export const deleteInviteController = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    await invitesService.deleteInvite(id);
+    await invitesService.deleteInvite(id as string);
     sendSuccess(res, null, "Invite deleted");
   } catch (err) {
     next(err);

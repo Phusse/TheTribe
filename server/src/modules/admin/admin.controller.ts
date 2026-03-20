@@ -36,7 +36,7 @@ export const updateUserRoleController = async (
   try {
     const { id } = req.params;
     const { role } = req.body;
-    const result = await adminService.updateUserRole(req.user!.sub, id, role);
+    const result = await adminService.updateUserRole(req.user!.sub, id as string, role);
     sendSuccess(res, result, "User role updated");
   } catch (err: any) {
     if (err.message.includes("own role")) sendError(res, err.message, 400);
@@ -52,7 +52,7 @@ export const toggleUserStatusController = async (
   try {
     const { id } = req.params;
     const { isActive } = req.body;
-    const result = await adminService.toggleUserStatus(req.user!.sub, id, isActive);
+    const result = await adminService.toggleUserStatus(req.user!.sub, id as string, isActive);
     sendSuccess(res, result, `User ${isActive ? "activated" : "deactivated"}`);
   } catch (err: any) {
     if (err.message.includes("yourself")) sendError(res, err.message, 400);

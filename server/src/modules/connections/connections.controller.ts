@@ -37,7 +37,7 @@ export const updateConnectionStatusController = async (
   try {
     const { id } = req.params;
     const { status } = req.body; // "accepted" | "rejected"
-    const conn = await connectionsService.updateConnectionStatus(req.user!.sub, id, status);
+    const conn = await connectionsService.updateConnectionStatus(req.user!.sub, id as string, status);
     sendSuccess(res, conn, `Connection ${status}`);
   } catch (err) {
     next(err);
@@ -51,7 +51,7 @@ export const removeConnectionController = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    await connectionsService.removeConnection(req.user!.sub, id);
+    await connectionsService.removeConnection(req.user!.sub, id as string);
     sendSuccess(res, null, "Connection removed");
   } catch (err) {
     next(err);

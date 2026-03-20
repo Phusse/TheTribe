@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import StatCard from "@/components/StatCard";
+import { format, differenceInDays } from "date-fns";
 
 const vaultTransition = { duration: 0.4, ease: [0.2, 0, 0, 1] as const };
 
@@ -23,13 +24,28 @@ const Dashboard = () => {
   const greeting = now.getHours() < 12 ? "Good morning" : now.getHours() < 18 ? "Good afternoon" : "Good evening";
   const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
       const res = await api.get("/users/me/stats");
       return res.data;
     },
   });
+
+  const { data: sessions, isLoading: sessionsLoading } = useQuery({
+    queryKey: ["sessions"],
+    queryFn: async () => {
+      const res = await api.get("/sessions");
+      return res.data;
+    },
+  });
+
+  const upcomingSession = sessions?.find((s: any) => s.upcoming);
+  const daysUntilSession = upcomingSession 
+    ? differenceInDays(new Date(upcomingSession.date), new Date()) 
+    : null;
+
+  const isLoading = statsLoading || sessionsLoading;
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -49,29 +65,39 @@ const Dashboard = () => {
           <StatCard label="Connections" value={stats?.connections || 0} icon={Users} />
           <StatCard label="Unread Messages" value={stats?.unreadMessages || 0} icon={MessageSquare} />
           <StatCard label="Groups" value={stats?.groups || 0} icon={MessagesSquare} />
-          {/* We will leave this one mocked until the sessions upcoming logic is unified on the frontend */}
-          <StatCard label="Next Session" value="2 days" icon={Video} accent />
+          <StatCard 
+            label="Next Session" 
+            value={upcomingSession ? (daysUntilSession === 0 ? "Today" : `${daysUntilSession} days`) : "None"} 
+            icon={Video} 
+            accent={!!upcomingSession} 
+          />
         </div>
       )}
 
-      {/* Temporarily hardcoded until Phase 6 session linkage is requested */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...vaultTransition, delay: 0.1 }}
-        className="surface-card p-4 lg:p-6 flex items-center justify-between"
-      >
-        <div className="flex items-center gap-3 lg:gap-4">
-          <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Video className="w-4 h-4 lg:w-5 lg:h-5 text-primary" />
+      {upcomingSession && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...vaultTransition, delay: 0.1 }}
+          className="surface-card p-4 lg:p-6 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => navigate("/dashboard/live")}
+        >
+          <div className="flex items-center gap-3 lg:gap-4">
+            <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Video className="w-4 h-4 lg:w-5 lg:h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-foreground font-body text-sm font-medium">{upcomingSession.title}</p>
+              <p className="text-muted-foreground text-xs font-body tabular-nums mt-0.5">
+                {format(new Date(upcomingSession.date), "EEE, MMM d")} · {upcomingSession.time}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-foreground font-body text-sm font-medium">Mastering Emotional Intelligence</p>
-            <p className="text-muted-foreground text-xs font-body tabular-nums mt-0.5">Fri, Mar 21 · 7:00 PM EST</p>
-          </div>
-        </div>
-        <span className="text-primary font-body text-sm font-medium tabular-nums shrink-0">2 days</span>
-      </motion.div>
+          <span className="text-primary font-body text-sm font-medium tabular-nums shrink-0">
+            {daysUntilSession === 0 ? "Today" : `${daysUntilSession} days`}
+          </span>
+        </motion.div>
+      )}
 
       <div>
         <p className="section-label mb-3 lg:mb-4">Quick Access</p>

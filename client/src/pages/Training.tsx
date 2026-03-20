@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Clock, CheckCircle, ChevronDown, Lock, BookOpen } from "lucide-react";
+import { Play, Clock, CheckCircle, ChevronDown, Lock, BookOpen, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 const vaultTransition = { duration: 0.4, ease: [0.2, 0, 0, 1] as const };
 
 interface Lesson {
+  id: string;
   title: string;
   duration: string;
-  completed: boolean;
-  locked?: boolean;
+  order: number;
 }
 
 interface Module {
-  id: number;
+  id: string;
   title: string;
   category: string;
   duration: string;
@@ -21,66 +24,45 @@ interface Module {
   lessons: Lesson[];
 }
 
-const modules: Module[] = [
-  {
-    id: 1, title: "The Art of Masculine Leadership", category: "Leadership", duration: "42 min", completed: true, progress: 100,
-    lessons: [
-      { title: "Introduction to Leadership Principles", duration: "8 min", completed: true },
-      { title: "Servant Leadership in Action", duration: "12 min", completed: true },
-      { title: "Leading Through Adversity", duration: "10 min", completed: true },
-      { title: "Building Your Leadership Identity", duration: "12 min", completed: true },
-    ],
-  },
-  {
-    id: 2, title: "Building Unshakeable Confidence", category: "Mindset", duration: "38 min", completed: true, progress: 100,
-    lessons: [
-      { title: "The Science of Self-Belief", duration: "10 min", completed: true },
-      { title: "Overcoming Imposter Syndrome", duration: "9 min", completed: true },
-      { title: "Body Language & Presence", duration: "11 min", completed: true },
-      { title: "Daily Confidence Rituals", duration: "8 min", completed: true },
-    ],
-  },
-  {
-    id: 3, title: "Financial Mastery: Foundations", category: "Finance", duration: "55 min", completed: false, progress: 40,
-    lessons: [
-      { title: "Mindset of Wealth", duration: "12 min", completed: true },
-      { title: "Budgeting & Cash Flow", duration: "14 min", completed: true },
-      { title: "Introduction to Investing", duration: "15 min", completed: false },
-      { title: "Building Multiple Income Streams", duration: "14 min", completed: false, locked: true },
-    ],
-  },
-  {
-    id: 4, title: "Mastering Emotional Intelligence", category: "Mindset", duration: "47 min", completed: false, progress: 0,
-    lessons: [
-      { title: "Understanding Your Emotions", duration: "12 min", completed: false },
-      { title: "Empathy as a Strength", duration: "11 min", completed: false, locked: true },
-      { title: "Managing Conflict with EQ", duration: "13 min", completed: false, locked: true },
-      { title: "EQ in Relationships", duration: "11 min", completed: false, locked: true },
-    ],
-  },
-  {
-    id: 5, title: "Strategic Networking", category: "Business", duration: "31 min", completed: false, progress: 0,
-    lessons: [
-      { title: "Building Genuine Relationships", duration: "10 min", completed: false },
-      { title: "The Follow-Up Formula", duration: "8 min", completed: false, locked: true },
-      { title: "Leveraging Your Network", duration: "13 min", completed: false, locked: true },
-    ],
-  },
-  {
-    id: 6, title: "Physical Discipline & Peak Performance", category: "Health", duration: "36 min", completed: false, progress: 0,
-    lessons: [
-      { title: "Morning Routine Blueprint", duration: "9 min", completed: false },
-      { title: "Training for Mental Toughness", duration: "12 min", completed: false, locked: true },
-      { title: "Nutrition Fundamentals", duration: "15 min", completed: false, locked: true },
-    ],
-  },
-];
-
-const completedCount = modules.filter((m) => m.completed).length;
-const overallProgress = Math.round(modules.reduce((sum, m) => sum + m.progress, 0) / modules.length);
-
 const Training = () => {
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // Fetch training modules and progress from backend
+  const { data: modules, isLoading, error } = useQuery({
+    queryKey: ["training"],
+    queryFn: async () => {
+      const res = await api.get("/training/modules");
+      return res.data as Module[];
+    },
+  });
+
+  const { mutate: updateProgress } = useMutation({
+    mutationFn: async ({ moduleId, progress }: { moduleId: string; progress: number }) => {
+      await api.patch("/training/progress", { moduleId, progress });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["training"] });
+    },
+    onError: () => toast.error("Failed to update progress"),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center p-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !modules) {
+    return <div className="text-destructive p-4">Failed to load training modules.</div>;
+  }
+
+  const completedCount = modules.filter((m) => m.completed).length;
+  const overallProgress = modules.length > 0 
+    ? Math.round(modules.reduce((sum, m) => sum + m.progress, 0) / modules.length)
+    : 0;
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -182,35 +164,41 @@ const Training = () => {
                     className="overflow-hidden"
                   >
                     <div className="border-t border-border px-4 lg:px-5 py-3 flex flex-col gap-1">
-                      {mod.lessons.map((lesson, li) => (
-                        <button
-                          key={li}
-                          disabled={lesson.locked}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                            lesson.locked
-                              ? "opacity-40 cursor-not-allowed"
-                              : lesson.completed
-                              ? "hover:bg-muted/30"
-                              : "hover:bg-primary/5 cursor-pointer"
-                          }`}
-                        >
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0">
-                            {lesson.locked ? (
-                              <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-                            ) : lesson.completed ? (
-                              <CheckCircle className="w-4 h-4 text-primary" />
-                            ) : (
-                              <Play className="w-3.5 h-3.5 text-foreground" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-body truncate ${lesson.completed ? "text-muted-foreground" : "text-foreground"}`}>
-                              {lesson.title}
-                            </p>
-                          </div>
-                          <span className="text-[11px] font-body text-muted-foreground/50 tabular-nums shrink-0">{lesson.duration}</span>
-                        </button>
-                      ))}
+                      {mod.lessons.length === 0 ? (
+                        <p className="text-muted-foreground text-xs p-2">No lessons available yet.</p>
+                      ) : null}
+                      {mod.lessons.map((lesson, li) => {
+                        // Very naive mock lesson progress based on global module progress
+                        const isLessonComplete = mod.progress > ((li + 1) / mod.lessons.length) * 100;
+
+                        return (
+                          <button
+                            key={lesson.id}
+                            onClick={() => {
+                              // Example of marking 100% progress when clicking the last lesson
+                              if (!isLessonComplete) {
+                                const newProgress = Math.min(100, Math.round(((li + 1) / mod.lessons.length) * 100));
+                                updateProgress({ moduleId: mod.id, progress: newProgress });
+                              }
+                            }}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors hover:bg-muted/30 cursor-pointer`}
+                          >
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0">
+                              {isLessonComplete ? (
+                                <CheckCircle className="w-4 h-4 text-primary" />
+                              ) : (
+                                <Play className="w-3.5 h-3.5 text-foreground" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-body truncate ${isLessonComplete ? "text-muted-foreground" : "text-foreground"}`}>
+                                {lesson.title}
+                              </p>
+                            </div>
+                            <span className="text-[11px] font-body text-muted-foreground/50 tabular-nums shrink-0">{lesson.duration}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </motion.div>
                 )}

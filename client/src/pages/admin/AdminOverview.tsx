@@ -1,29 +1,30 @@
 import { motion } from "framer-motion";
-import { Shield, Users, Ticket, BookOpen, Video, BarChart3, TrendingUp, AlertTriangle } from "lucide-react";
+import { Shield, Users, Ticket, BookOpen, Video, BarChart3, TrendingUp, AlertTriangle, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 const vaultTransition = { duration: 0.4, ease: [0.2, 0, 0, 1] as const };
-
-const quickStats = [
-  { label: "Total Members", value: "127", icon: Users, change: "+12 this month" },
-  { label: "Active Invites", value: "8", icon: Ticket, change: "3 used this week" },
-  { label: "Training Modules", value: "6", icon: BookOpen, change: "2 in progress" },
-  { label: "Upcoming Sessions", value: "4", icon: Video, change: "Next in 2 days" },
-];
-
-const recentActivity = [
-  { action: "Nathan Brooks joined via invite code TRIBE-K2L8M", time: "2 hours ago", type: "join" },
-  { action: "Training module 'Leadership Foundations' updated", time: "5 hours ago", type: "content" },
-  { action: "Invite code TRIBE-A7X2K generated", time: "1 day ago", type: "invite" },
-  { action: "Alex Rivera account suspended", time: "2 days ago", type: "moderation" },
-  { action: "Live session 'Weekly Roundtable' completed — 34 attendees", time: "3 days ago", type: "session" },
-  { action: "David Chen promoted to Admin", time: "5 days ago", type: "role" },
-];
 
 const AdminOverview = () => {
   const navigate = useNavigate();
   const { isSuperAdmin } = useAuth();
+
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["admin-stats"],
+    queryFn: async () => {
+      const res = await api.get("/admin/stats");
+      return res.data;
+    },
+  });
+
+  const quickStats = [
+    { label: "Total Members", value: stats?.totalUsers || 0, icon: Users },
+    { label: "Groups", value: stats?.totalGroups || 0, icon: Users },
+    { label: "Training Modules", value: stats?.totalModules || 0, icon: BookOpen },
+    { label: "Invites Generated", value: stats?.totalInvites || 0, icon: Ticket },
+  ];
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -42,25 +43,30 @@ const AdminOverview = () => {
       </motion.div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {quickStats.map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...vaultTransition, delay: i * 0.05 }}
-            className="surface-card p-4 lg:p-5 flex flex-col gap-2"
-          >
-            <div className="flex items-center justify-between">
-              <stat.icon className="w-4 h-4 text-primary" />
-              <TrendingUp className="w-3 h-3 text-muted-foreground" />
-            </div>
-            <p className="font-display text-foreground text-2xl">{stat.value}</p>
-            <p className="text-xs font-body text-muted-foreground">{stat.label}</p>
-            <p className="text-[10px] font-body text-primary">{stat.change}</p>
-          </motion.div>
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="flex justify-center p-8">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {quickStats.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...vaultTransition, delay: i * 0.05 }}
+              className="surface-card p-4 lg:p-5 flex flex-col gap-2"
+            >
+              <div className="flex items-center justify-between">
+                <stat.icon className="w-4 h-4 text-primary" />
+                <TrendingUp className="w-3 h-3 text-muted-foreground" />
+              </div>
+              <p className="font-display text-foreground text-2xl">{stat.value}</p>
+              <p className="text-xs font-body text-muted-foreground">{stat.label}</p>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -68,7 +74,7 @@ const AdminOverview = () => {
           { label: "Manage Users", path: "/admin/users", icon: Users },
           { label: "Invite Codes", path: "/admin/invites", icon: Ticket },
           { label: "Training", path: "/admin/training", icon: BookOpen },
-          { label: "Analytics", path: "/admin/stats", icon: BarChart3 },
+          { label: "Sessions", path: "/admin/sessions", icon: Video },
         ].map((action) => (
           <button
             key={action.label}
@@ -81,25 +87,9 @@ const AdminOverview = () => {
         ))}
       </div>
 
-      {/* Recent Activity */}
-      <div className="flex flex-col gap-3">
-        <h2 className="section-label px-1">Recent Activity</h2>
-        <div className="surface-card divide-y divide-border">
-          {recentActivity.map((item, i) => (
-            <div key={i} className="px-4 lg:px-6 py-3 flex items-start gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-body text-foreground">{item.action}</p>
-                <p className="text-xs font-body text-muted-foreground mt-0.5">{item.time}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* SuperAdmin Warning */}
       {isSuperAdmin && (
-        <div className="surface-card p-4 flex items-start gap-3 border border-destructive/20">
+        <div className="surface-card p-4 flex items-start gap-3 border border-destructive/20 mt-4">
           <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-body text-foreground font-medium">SuperAdmin Access</p>
