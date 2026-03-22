@@ -18,8 +18,10 @@ const Settings = () => {
     pushNotifications: true,
     emailDigest: true,
   });
-  
+
   const [darkMode, setDarkMode] = useState(true);
+  const [showOnlineStatus, setShowOnlineStatus] = useState(true);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [profileVisibility, setProfileVisibility] = useState<"everyone" | "connections" | "hidden">("connections");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -29,6 +31,9 @@ const Settings = () => {
       const s = (user as any).settings;
       setNotifications({ pushNotifications: s.pushNotifications, emailDigest: s.emailDigest });
       setDarkMode(s.darkMode);
+      setShowOnlineStatus(s.showOnlineStatus ?? true);
+      setTwoFactorEnabled(s.twoFactorEnabled ?? false);
+      setProfileVisibility(s.profileVisibility ?? "connections");
     }
   }, [user]);
 
@@ -42,7 +47,7 @@ const Settings = () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); // Example cache bust
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to update settings");
+      toast.error(err.message);
     }
   });
 
@@ -50,14 +55,12 @@ const Settings = () => {
     <button
       onClick={onToggle}
       disabled={disabled}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-        enabled ? "bg-primary" : "bg-muted"
-      } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+      className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${enabled ? "bg-primary" : "bg-muted"
+        } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
     >
       <div
-        className={`absolute top-0.5 w-5 h-5 rounded-full bg-foreground transition-transform duration-200 ${
-          enabled ? "translate-x-[22px]" : "translate-x-0.5"
-        }`}
+        className={`absolute top-0.5 w-5 h-5 rounded-full bg-foreground transition-transform duration-200 ${enabled ? "translate-x-[22px]" : "translate-x-0.5"
+          }`}
       />
     </button>
   );
@@ -116,6 +119,23 @@ const Settings = () => {
             >
               Toggle
             </button>
+          </div>
+          <div className="px-5 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Shield className="w-4 h-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-body text-foreground font-medium">Two-Factor Auth</p>
+                <p className="text-xs font-body text-muted-foreground mt-0.5">Extra layer of security for your account.</p>
+              </div>
+            </div>
+            <ToggleSwitch
+              enabled={twoFactorEnabled}
+              onToggle={() => {
+                setTwoFactorEnabled(!twoFactorEnabled);
+                updateSettings({ twoFactorEnabled: !twoFactorEnabled });
+              }}
+              disabled={isPending}
+            />
           </div>
         </div>
       </motion.div>
@@ -189,12 +209,15 @@ const Settings = () => {
               {(["everyone", "connections", "hidden"] as const).map((opt) => (
                 <button
                   key={opt}
-                  onClick={() => setProfileVisibility(opt)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-body font-medium transition-colors ${
-                    profileVisibility === opt
-                      ? "bg-primary/15 text-primary"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  }`}
+                  onClick={() => {
+                    setProfileVisibility(opt);
+                    updateSettings({ profileVisibility: opt });
+                  }}
+                  disabled={isPending}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-body font-medium transition-colors disabled:opacity-50 ${profileVisibility === opt
+                    ? "bg-primary/15 text-primary"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
                 >
                   {opt === "everyone" ? (
                     <span className="flex items-center gap-1.5"><Globe className="w-3 h-3" />Everyone</span>
@@ -206,6 +229,21 @@ const Settings = () => {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="px-5 py-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-body text-foreground font-medium">Online Status</p>
+              <p className="text-xs font-body text-muted-foreground mt-0.5">Show others when you are actively using the app.</p>
+            </div>
+            <ToggleSwitch
+              enabled={showOnlineStatus}
+              onToggle={() => {
+                setShowOnlineStatus(!showOnlineStatus);
+                updateSettings({ showOnlineStatus: !showOnlineStatus });
+              }}
+              disabled={isPending}
+            />
           </div>
         </div>
       </motion.div>

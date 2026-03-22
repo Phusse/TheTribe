@@ -5,6 +5,7 @@ import { authenticate } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/role.middleware";
 import {
   getInvitesController,
+  getInviteAttemptsController,
   createInviteController,
   deleteInviteController,
 } from "./invites.controller";
@@ -19,6 +20,7 @@ const CreateInviteSchema = z.object({
 });
 
 router.get("/", getInvitesController);
+router.get("/attempts", getInviteAttemptsController);
 router.post("/", validate(CreateInviteSchema), createInviteController);
 router.delete("/:id", deleteInviteController);
 

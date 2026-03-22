@@ -1,8 +1,8 @@
 import axios from "axios";
 
 // Environment variable should be defined in client/.env
-// e.g. VITE_API_URL=http://localhost:3001/api
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+// e.g. VITE_API_URL=http://localhost:3002/api
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3002/api";
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -67,7 +67,7 @@ api.interceptors.response.use(
 
       try {
         const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
-        
+
         // Save new tokens
         localStorage.setItem("accessToken", data.data.accessToken);
         localStorage.setItem("refreshToken", data.data.refreshToken);
@@ -88,8 +88,22 @@ api.interceptors.response.use(
       }
     }
 
-    // Extract standardized API error message if present
-    const errorMessage = error.response?.data?.message || "An error occurred";
+    // Handle maintenance mode globally — fire event so App.tsx shows the maintenance screen
+    if (error.response?.status === 503) {
+      window.dispatchEvent(new Event("app:maintenance"));
+      return Promise.reject(new Error("The platform is currently under maintenance."));
+    }
+
+    // Extract standardized API error or network failure
+    let errorMessage = "An unexpected error occurred";
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.code === 'ERR_NETWORK') {
+      errorMessage = "Network Error: Please check your connection or verify the server is running.";
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
     return Promise.reject(new Error(errorMessage));
   }
 );

@@ -95,3 +95,25 @@ export const sendGroupMessage = async (userId: string, groupId: string, text: st
     },
   });
 };
+
+export const createGroup = async (name: string, description: string) => {
+  return prisma.group.create({
+    data: { name, description },
+  });
+};
+
+export const updateGroup = async (id: string, name?: string, description?: string) => {
+  return prisma.group.update({
+    where: { id },
+    data: {
+      ...(name !== undefined && { name }),
+      ...(description !== undefined && { description }),
+    },
+  });
+};
+
+export const deleteGroup = async (id: string) => {
+  return prisma.group.delete({
+    where: { id },
+  });
+};

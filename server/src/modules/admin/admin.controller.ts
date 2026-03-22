@@ -15,6 +15,32 @@ export const getStatsController = async (
   }
 };
 
+export const getSystemSettingsController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const settings = await adminService.getSystemSettings();
+    sendSuccess(res, settings);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateSystemSettingsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const result = await adminService.updateSystemSettings(req.body);
+    sendSuccess(res, result, "System settings updated");
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getUsersController = async (
   _req: Request,
   res: Response,

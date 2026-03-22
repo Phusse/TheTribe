@@ -1,23 +1,51 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Settings, Bell, Shield, Globe, Database } from "lucide-react";
+import { Settings, Bell, Shield, Globe, Database, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import type { UpdateSystemSettingsInput } from "@thetribe/shared";
 
 const vaultTransition = { duration: 0.4, ease: [0.2, 0, 0, 1] as const };
 
 const AdminSettings = () => {
   const { isSuperAdmin } = useAuth();
-  const [settings, setSettings] = useState({
-    newMemberNotifications: true,
-    sessionReminders: true,
-    weeklyDigest: false,
-    maintenanceMode: false,
-    openRegistration: false,
-    requireInviteCode: true,
+  const queryClient = useQueryClient();
+
+  // Fetch Live Settings
+  const { data: settings, isLoading } = useQuery<UpdateSystemSettingsInput>({
+    queryKey: ["admin-settings"],
+    queryFn: async () => {
+      const res = await api.get("/admin/settings");
+      return (res as any).data;
+    },
   });
 
-  const toggle = (key: keyof typeof settings) =>
-    setSettings((s) => ({ ...s, [key]: !s[key] }));
+  // Patch Settings seamlessly
+  const { mutate: updateSettings, isPending } = useMutation({
+    mutationFn: async (payload: UpdateSystemSettingsInput) => {
+      const res = await api.patch("/admin/settings", payload);
+      return (res as any).data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save setting"),
+  });
+
+  const toggle = (key: keyof UpdateSystemSettingsInput) => {
+    if (!settings) return;
+    updateSettings({ [key]: !settings[key] });
+  };
+
+  if (isLoading || !settings) {
+    return (
+      <div className="flex justify-center p-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,7 +54,7 @@ const AdminSettings = () => {
           <Settings className="w-5 h-5 text-primary" />
           <h1 className="font-display text-foreground text-2xl">Admin Settings</h1>
         </div>
-        <p className="text-muted-foreground text-sm font-body mt-1">Platform configuration and preferences.</p>
+        <p className="text-muted-foreground text-sm font-body mt-1">Platform configuration and live logic routing.</p>
       </motion.div>
 
       {/* Notifications */}
@@ -47,7 +75,8 @@ const AdminSettings = () => {
             </div>
             <button
               onClick={() => toggle(item.key)}
-              className={`w-10 h-6 rounded-full transition-colors relative ${settings[item.key] ? "bg-primary" : "bg-muted"}`}
+              disabled={isPending}
+              className={`w-10 h-6 rounded-full transition-colors relative disabled:opacity-50 ${settings[item.key] ? "bg-primary" : "bg-muted"}`}
             >
               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${settings[item.key] ? "left-5" : "left-1"}`} />
             </button>
@@ -72,7 +101,8 @@ const AdminSettings = () => {
             </div>
             <button
               onClick={() => toggle(item.key)}
-              className={`w-10 h-6 rounded-full transition-colors relative ${settings[item.key] ? "bg-primary" : "bg-muted"}`}
+              disabled={isPending}
+              className={`w-10 h-6 rounded-full transition-colors relative disabled:opacity-50 ${settings[item.key] ? "bg-primary" : "bg-muted"}`}
             >
               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${settings[item.key] ? "left-5" : "left-1"}`} />
             </button>
@@ -94,7 +124,8 @@ const AdminSettings = () => {
             </div>
             <button
               onClick={() => toggle("maintenanceMode")}
-              className={`w-10 h-6 rounded-full transition-colors relative ${settings.maintenanceMode ? "bg-destructive" : "bg-muted"}`}
+              disabled={isPending}
+              className={`w-10 h-6 rounded-full transition-colors relative disabled:opacity-50 ${settings.maintenanceMode ? "bg-destructive" : "bg-muted"}`}
             >
               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${settings.maintenanceMode ? "left-5" : "left-1"}`} />
             </button>

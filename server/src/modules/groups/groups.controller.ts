@@ -81,3 +81,46 @@ export const sendGroupMessageController = async (
     else next(err);
   }
 };
+
+export const createGroupController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { name, description } = req.body;
+    const group = await groupsService.createGroup(name, description);
+    sendCreated(res, group, "Group created");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateGroupController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+    const group = await groupsService.updateGroup(id as string, name, description);
+    sendSuccess(res, group, "Group updated");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteGroupController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    await groupsService.deleteGroup(id as string);
+    sendSuccess(res, null, "Group deleted");
+  } catch (err) {
+    next(err);
+  }
+};

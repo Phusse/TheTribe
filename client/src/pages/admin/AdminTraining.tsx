@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Plus, Pencil, Trash2, X, Loader2, GripVertical } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, X, Loader2, GripVertical, Camera, Trash } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ interface ModuleFormState {
   category: string;
   duration: string;
   order: string;
+  thumbnailUrl?: string;
 }
 
 interface LessonFormState {
@@ -28,7 +29,7 @@ interface LessonFormState {
   content: string;
 }
 
-const emptyModuleForm: ModuleFormState = { title: "", category: "", duration: "", order: "" };
+const emptyModuleForm: ModuleFormState = { title: "", category: "", duration: "", order: "", thumbnailUrl: "" };
 const emptyLessonForm: LessonFormState = { title: "", duration: "", order: "", content: "" };
 
 // ── Subcomponent: Input ────────────────────────────────────────────────────────
@@ -47,9 +48,9 @@ const Field = ({
   required?: boolean;
 }) => (
   <div className="flex flex-col gap-1">
-    <label className="text-xs font-body text-muted-foreground">{label}</label>
+    <label className="text-xs font-body text-muted-foreground ml-1">{label}</label>
     <input
-      className="px-3 py-2 rounded-lg bg-muted text-sm font-body text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+      className="auth-input"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
@@ -57,6 +58,33 @@ const Field = ({
     />
   </div>
 );
+
+const ConfirmButton = ({ onConfirm, children, className }: any) => {
+  const [confirming, setConfirming] = useState(false);
+
+  if (confirming) {
+    return (
+      <button
+        type="button"
+        onMouseLeave={() => setConfirming(false)}
+        onClick={(e) => { e.stopPropagation(); onConfirm(); setConfirming(false); }}
+        className="px-2 py-1 text-[10px] font-medium bg-destructive text-destructive-foreground rounded flex items-center gap-1 transition-all"
+      >
+        <span className="whitespace-nowrap">Sure?</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+      className={className}
+    >
+      {children}
+    </button>
+  );
+};
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
@@ -83,6 +111,16 @@ const AdminTraining = () => {
       return (res as any).data;
     },
   });
+
+  // Sync editing object when root queries refetch (e.g after adding a lesson)
+  useEffect(() => {
+    if (editingModule && modules.length > 0) {
+      const fresh = modules.find(m => m.id === editingModule.id);
+      if (fresh && fresh.lessons.length !== editingModule.lessons.length) {
+        setEditingModule(fresh);
+      }
+    }
+  }, [modules, editingModule]);
 
   // ── Module Mutations ─────────────────────────────────────────────────────────
 
@@ -172,6 +210,7 @@ const AdminTraining = () => {
       category: mod.category,
       duration: mod.duration,
       order: String(mod.order),
+      thumbnailUrl: mod.thumbnailUrl || "",
     });
     setLessonModuleId(mod.id);
     setModuleModal("edit");
@@ -218,6 +257,7 @@ const AdminTraining = () => {
       category: moduleForm.category,
       duration: moduleForm.duration,
       order: parseInt(moduleForm.order, 10) || 0,
+      thumbnailUrl: moduleForm.thumbnailUrl || undefined,
     };
     if (moduleModal === "create") {
       createModuleMutation.mutate(payload);
@@ -246,6 +286,24 @@ const AdminTraining = () => {
   const isLessonBusy = createLessonMutation.isPending || updateLessonMutation.isPending;
 
   const publishedCount = modules.filter((m) => m.published).length;
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be smaller than 5MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setModuleForm((prev) => ({ ...prev, thumbnailUrl: event.target?.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -303,8 +361,8 @@ const AdminTraining = () => {
                 <h3 className="text-sm font-body font-medium text-foreground flex-1 pr-2">{mod.title}</h3>
                 <span
                   className={`text-[10px] font-body font-medium px-2 py-0.5 rounded shrink-0 ${mod.published
-                      ? "bg-primary/10 text-primary"
-                      : "bg-muted text-muted-foreground"
+                    ? "bg-primary/10 text-primary"
+                    : "bg-muted text-muted-foreground"
                     }`}
                 >
                   {mod.published ? "Published" : "Draft"}
@@ -333,16 +391,12 @@ const AdminTraining = () => {
                 >
                   {mod.published ? "Unpublish" : "Publish"}
                 </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Delete "${mod.title}"? This cannot be undone.`)) {
-                      deleteModuleMutation.mutate(mod.id);
-                    }
-                  }}
+                <ConfirmButton
+                  onConfirm={() => deleteModuleMutation.mutate(mod.id)}
                   className="p-1.5 rounded-md text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                </ConfirmButton>
               </div>
             </motion.div>
           ))}
@@ -382,6 +436,38 @@ const AdminTraining = () => {
               <div className="overflow-y-auto flex-1">
                 {/* Module form */}
                 <form id="module-form" onSubmit={handleModuleSubmit} className="flex flex-col gap-4 px-6 py-5">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-body text-muted-foreground ml-1">Thumbnail</label>
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      <div className="w-full sm:w-32 h-20 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-center shrink-0 overflow-hidden relative group">
+                        {moduleForm.thumbnailUrl ? (
+                          <img src={moduleForm.thumbnailUrl} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-primary/60">
+                            <Camera className="w-5 h-5 mb-1" />
+                            <span className="text-[10px] uppercase font-semibold">Upload</span>
+                          </div>
+                        )}
+                        <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity z-10">
+                          <Camera className="w-5 h-5 text-white" />
+                          <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                        </label>
+                      </div>
+                      <div className="flex flex-col gap-1 items-center sm:items-start text-xs text-muted-foreground">
+                        <p>16:9 ratio recommended (max 5MB).</p>
+                        {moduleForm.thumbnailUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setModuleForm((prev) => ({ ...prev, thumbnailUrl: "" }))}
+                            className="flex items-center gap-1 text-destructive hover:underline mt-1"
+                          >
+                            <Trash className="w-3 h-3" /> Remove image
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <Field
                     label="Title *"
                     value={moduleForm.title}
@@ -449,26 +535,23 @@ const AdminTraining = () => {
                               >
                                 <Pencil className="w-3 h-3" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (confirm(`Delete "${lesson.title}"?`)) {
-                                    deleteLessonMutation.mutate(lesson.id);
-                                    // Optimistically remove from local state
-                                    setEditingModule((prev) =>
-                                      prev
-                                        ? {
-                                          ...prev,
-                                          lessons: prev.lessons.filter((l) => l.id !== lesson.id),
-                                        }
-                                        : prev
-                                    );
-                                  }
+                              <ConfirmButton
+                                onConfirm={() => {
+                                  deleteLessonMutation.mutate(lesson.id);
+                                  // Optimistically remove from local state
+                                  setEditingModule((prev) =>
+                                    prev
+                                      ? {
+                                        ...prev,
+                                        lessons: prev.lessons.filter((l) => l.id !== lesson.id),
+                                      }
+                                      : prev
+                                  );
                                 }}
                                 className="p-1 rounded text-destructive/60 hover:text-destructive transition-colors"
                               >
                                 <Trash2 className="w-3 h-3" />
-                              </button>
+                              </ConfirmButton>
                             </div>
                           </div>
                         ))}

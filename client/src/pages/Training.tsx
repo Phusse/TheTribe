@@ -21,6 +21,7 @@ interface Module {
   duration: string;
   completed: boolean;
   progress: number;
+  thumbnailUrl?: string;
   lessons: Lesson[];
 }
 
@@ -44,7 +45,7 @@ const Training = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["training"] });
     },
-    onError: () => toast.error("Failed to update progress"),
+    onError: (e: any) => toast.error(e.message),
   });
 
   if (isLoading) {
@@ -60,7 +61,7 @@ const Training = () => {
   }
 
   const completedCount = modules.filter((m) => m.completed).length;
-  const overallProgress = modules.length > 0 
+  const overallProgress = modules.length > 0
     ? Math.round(modules.reduce((sum, m) => sum + m.progress, 0) / modules.length)
     : 0;
 
@@ -111,25 +112,33 @@ const Training = () => {
                 onClick={() => setExpanded(isExpanded ? null : mod.id)}
                 className="w-full p-4 lg:p-5 flex items-center gap-4 text-left hover:bg-muted/20 transition-colors"
               >
-                <div className="relative w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                  {mod.completed ? (
-                    <CheckCircle className="w-5 h-5 text-primary" />
-                  ) : mod.progress > 0 ? (
-                    <>
-                      <Play className="w-4 h-4 text-primary" />
-                      <svg className="absolute inset-0" viewBox="0 0 40 40">
-                        <circle cx="20" cy="20" r="18" fill="none" stroke="hsl(var(--muted))" strokeWidth="2" />
-                        <circle
-                          cx="20" cy="20" r="18" fill="none" stroke="hsl(var(--primary))" strokeWidth="2"
-                          strokeDasharray={`${(mod.progress / 100) * 113} 113`}
-                          strokeLinecap="round"
-                          transform="rotate(-90 20 20)"
-                        />
-                      </svg>
-                    </>
+                <div className="relative w-24 h-16 sm:w-32 sm:h-20 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden group-hover:shadow-md transition-shadow">
+                  {mod.thumbnailUrl ? (
+                    <img src={mod.thumbnailUrl} alt={mod.title} className="absolute inset-0 w-full h-full object-cover" />
                   ) : (
-                    <BookOpen className="w-5 h-5 text-muted-foreground" />
+                    <div className="absolute inset-0 bg-primary/10" />
                   )}
+
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+                    {mod.completed ? (
+                      <CheckCircle className="w-6 h-6 text-white drop-shadow-md" />
+                    ) : mod.progress > 0 ? (
+                      <>
+                        <Play className="w-5 h-5 text-white drop-shadow-md" />
+                        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 40 40">
+                          <circle cx="20" cy="20" r="14" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
+                          <circle
+                            cx="20" cy="20" r="14" fill="none" stroke="#fff" strokeWidth="2"
+                            strokeDasharray={`${(mod.progress / 100) * 88} 88`}
+                            strokeLinecap="round"
+                            transform="rotate(-90 20 20)"
+                          />
+                        </svg>
+                      </>
+                    ) : (
+                      <Play className="w-6 h-6 text-white/90 drop-shadow-md" />
+                    )}
+                  </div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
@@ -147,9 +156,8 @@ const Training = () => {
                   </div>
                 </div>
                 <ChevronDown
-                  className={`w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0 ${
-                    isExpanded ? "rotate-180" : ""
-                  }`}
+                  className={`w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0 ${isExpanded ? "rotate-180" : ""
+                    }`}
                 />
               </button>
 

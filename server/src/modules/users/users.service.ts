@@ -1,6 +1,7 @@
 import { prisma } from "../../config/database";
 import { AppError } from "../../middleware/error.middleware";
 import type { UpdateProfileInput, UpdateSettingsInput } from "@thetribe/shared";
+import { uploadImageToCloudinary } from "../../utils/cloudinary";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function omitPassword<T extends { passwordHash: string }>(user: T) {
@@ -20,12 +21,22 @@ export const getUserProfile = async (userId: string) => {
 };
 
 export const updateProfile = async (userId: string, input: UpdateProfileInput) => {
+  let photoUrl = input.profilePhotoUrl;
+
+  if (photoUrl && photoUrl.startsWith("data:image/")) {
+    photoUrl = await uploadImageToCloudinary(photoUrl, "thetribe/avatars");
+  }
+
   const user = await prisma.user.update({
     where: { id: userId },
     data: {
       ...(input.firstName && { firstName: input.firstName }),
       ...(input.lastName && { lastName: input.lastName }),
-      ...(input.profilePhotoUrl !== undefined && { profilePhotoUrl: input.profilePhotoUrl }),
+      ...(photoUrl !== undefined && { profilePhotoUrl: photoUrl }),
+      ...(input.occupation !== undefined && { occupation: input.occupation }),
+      ...(input.bio !== undefined && { bio: input.bio }),
+      ...(input.location !== undefined && { location: input.location }),
+      ...(input.phone !== undefined && { phone: input.phone }),
     },
     include: { settings: true },
   });
@@ -47,7 +58,7 @@ export const updateSettings = async (userId: string, input: UpdateSettingsInput)
 };
 
 export const getUserStats = async (userId: string) => {
-  const [connections, unreadMessages, groups] = await Promise.all([
+  const [connections, unreadMessages, groups, pendingConnections] = await Promise.all([
     // Active connections count
     prisma.connection.count({
       where: {
@@ -66,7 +77,48 @@ export const getUserStats = async (userId: string) => {
     prisma.groupMember.count({
       where: { userId },
     }),
+    // Pending incoming connection requests
+    prisma.connection.count({
+      where: {
+        receiverId: userId,
+        status: "pending",
+      },
+    }),
   ]);
 
-  return { connections, unreadMessages, groups };
+  return { connections, unreadMessages, groups, pendingConnections };
+};
+
+export const getDiscoverableUsers = async (userId: string) => {
+  // Find all current connections or pending requests
+  const userConnections = await prisma.connection.findMany({
+    where: {
+      OR: [{ requesterId: userId }, { receiverId: userId }],
+    },
+    select: { requesterId: true, receiverId: true },
+  });
+
+  const connectedUserIds = new Set(
+    userConnections.flatMap((c) => [c.requesterId, c.receiverId])
+  );
+  connectedUserIds.add(userId);
+
+  // Return max 50 active users who aren't the user or already connected
+  const users = await prisma.user.findMany({
+    where: {
+      id: { notIn: Array.from(connectedUserIds) },
+      isActive: true,
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      profilePhotoUrl: true,
+      occupation: true,
+      location: true,
+    },
+    take: 50,
+  });
+
+  return users;
 };

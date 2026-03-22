@@ -15,6 +15,7 @@ export interface TrainingModule {
     duration: string;
     order: number;
     published: boolean;
+    thumbnailUrl?: string;
     lessons: Lesson[];
     enrolledCount?: number;
 }

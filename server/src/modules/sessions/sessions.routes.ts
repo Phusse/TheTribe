@@ -14,9 +14,10 @@ const router = Router();
 const CreateSessionSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
-  date: z.string().datetime(),
+  date: z.string().min(1, "Date is required"),
   time: z.string().min(1),
-  meetingUrl: z.string().url().optional(),
+  meetingUrl: z.string().url().or(z.literal("")).optional(),
+  thumbnailUrl: z.string().optional(),
 });
 
 // All routes require authentication

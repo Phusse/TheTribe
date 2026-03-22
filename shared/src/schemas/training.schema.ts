@@ -5,6 +5,7 @@ export const CreateModuleSchema = z.object({
     category: z.string().min(1).max(50),
     duration: z.string().min(1),
     order: z.number().int().min(0),
+    thumbnailUrl: z.string().optional(),
 });
 
 export const UpdateModuleSchema = z.object({
@@ -13,6 +14,7 @@ export const UpdateModuleSchema = z.object({
     duration: z.string().min(1).optional(),
     order: z.number().int().min(0).optional(),
     published: z.boolean().optional(),
+    thumbnailUrl: z.string().optional(),
 });
 
 export const CreateLessonSchema = z.object({
@@ -20,14 +22,14 @@ export const CreateLessonSchema = z.object({
     title: z.string().min(1).max(200),
     duration: z.string().min(1),
     order: z.number().int().min(0),
-    content: z.string().url().optional().or(z.literal("")),
+    content: z.string().optional().nullable(),
 });
 
 export const UpdateLessonSchema = z.object({
     title: z.string().min(1).max(200).optional(),
     duration: z.string().min(1).optional(),
     order: z.number().int().min(0).optional(),
-    content: z.string().url().optional().or(z.literal("")),
+    content: z.string().optional().nullable(),
 });
 
 export const UpdateProgressSchema = z.object({

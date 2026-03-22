@@ -8,7 +8,9 @@ export const registerController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const result = await authService.register(req.body);
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const ipString = Array.isArray(ip) ? ip[0] : ip?.toString();
+    const result = await authService.register(req.body, ipString);
     sendCreated(res, result, "Registration successful");
   } catch (err) {
     next(err);
@@ -76,6 +78,34 @@ export const meController = async (
   try {
     // The JWT payload already has sub/email/role — no DB call needed for lightweight checks
     sendSuccess(res, req.user, "Authenticated");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const forgotPasswordController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+    await authService.forgotPassword(email);
+    sendSuccess(res, null, "If an account exists with that email, a password reset link has been sent.");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const resetPasswordController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email, token, password } = req.body;
+    await authService.resetPassword(email, token, password);
+    sendSuccess(res, null, "Password reset successfully. You can now log in.");
   } catch (err) {
     next(err);
   }
