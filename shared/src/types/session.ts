@@ -5,5 +5,6 @@ export interface LiveSession {
     date: string;
     time: string;
     meetingUrl?: string | null;
+    thumbnailUrl?: string | null;
     createdAt: string;
 }

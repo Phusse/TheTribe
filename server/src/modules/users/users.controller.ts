@@ -53,3 +53,16 @@ export const getStatsController = async (
     next(err);
   }
 };
+
+export const getDiscoverableUsersController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const users = await usersService.getDiscoverableUsers(req.user!.sub);
+    sendSuccess(res, users);
+  } catch (err) {
+    next(err);
+  }
+};

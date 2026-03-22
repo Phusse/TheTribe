@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, UserCog, Ban, ChevronDown, Search, Loader2 } from "lucide-react";
+import { Users, UserCog, Ban, ChevronDown, Search, Loader2, MessageSquare, X, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -29,6 +29,8 @@ const UserManagement = () => {
   const queryClient = useQueryClient();
   const [roleDropdown, setRoleDropdown] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [messagingUser, setMessagingUser] = useState<AdminUserView | null>(null);
+  const [messageText, setMessageText] = useState("");
   const { user: selfUser, isSuperAdmin } = useAuth();
 
   const { data: users, isLoading } = useQuery({
@@ -48,7 +50,7 @@ const UserManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setRoleDropdown(null);
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || "Failed to update role"),
+    onError: (e: any) => toast.error(e.message),
   });
 
   const { mutate: toggleStatus } = useMutation({
@@ -59,7 +61,19 @@ const UserManagement = () => {
       toast.success("User status updated");
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || "Failed to update status"),
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const { mutate: sendAdminMessage, isPending: isSendingMessage } = useMutation({
+    mutationFn: async ({ receiverId, text }: { receiverId: string; text: string }) => {
+      await api.post(`/messages/${receiverId}`, { text });
+    },
+    onSuccess: () => {
+      toast.success("Message sent!");
+      setMessagingUser(null);
+      setMessageText("");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const validUsers = users || [];
@@ -71,6 +85,48 @@ const UserManagement = () => {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Send Message Modal */}
+      <AnimatePresence>
+        {messagingUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setMessagingUser(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="surface-card p-6 w-full max-w-md rounded-xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display text-foreground text-lg">Message {messagingUser.firstName}</h2>
+                <button onClick={() => setMessagingUser(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <textarea
+                rows={4}
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                className="auth-textarea"
+                placeholder={`Write a message to ${messagingUser.firstName}...`}
+              />
+              <button
+                onClick={() => sendAdminMessage({ receiverId: messagingUser.id, text: messageText })}
+                disabled={isSendingMessage || !messageText.trim()}
+                className="mt-3 w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-body font-medium hover:brightness-110 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isSendingMessage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Send Message
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={vaultTransition}>
         <div className="flex items-center gap-3">
           <Users className="w-5 h-5 text-primary" />
@@ -123,6 +179,7 @@ const UserManagement = () => {
                   <th className="text-left px-6 py-3 section-label font-normal">Status</th>
                   <th className="text-left px-6 py-3 section-label font-normal">Joined</th>
                   {isSuperAdmin && <th className="text-left px-6 py-3 section-label font-normal">Actions</th>}
+                  <th className="text-left px-6 py-3 section-label font-normal">Message</th>
                 </tr>
               </thead>
               <tbody>
@@ -172,11 +229,10 @@ const UserManagement = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1">
                           {selfUser?.id !== u.id && (
-                            <button 
+                            <button
                               onClick={() => toggleStatus({ id: u.id, isActive: !u.isActive })}
-                              className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                                u.isActive ? "hover:bg-destructive/10 text-muted-foreground hover:text-destructive" : "hover:bg-primary/10 text-destructive hover:text-primary"
-                              }`} 
+                              className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${u.isActive ? "hover:bg-destructive/10 text-muted-foreground hover:text-destructive" : "hover:bg-primary/10 text-destructive hover:text-primary"
+                                }`}
                               title={u.isActive ? "Suspend" : "Reactivate"}
                             >
                               <Ban className="w-3.5 h-3.5" />
@@ -185,6 +241,17 @@ const UserManagement = () => {
                         </div>
                       </td>
                     )}
+                    <td className="px-6 py-4">
+                      {selfUser?.id !== u.id && (
+                        <button
+                          onClick={() => setMessagingUser(u)}
+                          className="text-muted-foreground hover:text-primary transition-colors"
+                          title="Send Message"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -217,13 +284,13 @@ const UserManagement = () => {
                 </div>
                 {isSuperAdmin && selfUser?.id !== u.id && (
                   <div className="flex items-center gap-2 pt-2 border-t border-border">
-                    <button 
+                    <button
                       onClick={() => changeRole({ id: u.id, role: u.role === "MEMBER" ? "ADMIN" : "MEMBER" })}
                       className="flex-1 py-1.5 rounded-md bg-surface-hover text-xs font-body text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1"
                     >
                       <UserCog className="w-3 h-3" /> Toggle Admin
                     </button>
-                    <button 
+                    <button
                       onClick={() => toggleStatus({ id: u.id, isActive: !u.isActive })}
                       className="flex-1 py-1.5 rounded-md bg-surface-hover text-xs font-body text-muted-foreground hover:text-destructive transition-colors flex items-center justify-center gap-1"
                     >

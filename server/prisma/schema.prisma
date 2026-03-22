@@ -22,6 +22,10 @@ model User {
   role            Role     @default(MEMBER)
   isActive        Boolean  @default(true)
   profilePhotoUrl String?
+  occupation      String?
+  bio             String?
+  location        String?
+  phone           String?
   pledgeAccepted  Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -53,10 +57,11 @@ model TrainingModule {
   id        String   @id @default(cuid())
   title     String
   category  String
-  duration  String
-  order     Int
-  published Boolean  @default(false)
-  createdAt DateTime @default(now())
+  duration     String
+  order        Int
+  published    Boolean  @default(false)
+  thumbnailUrl String?
+  createdAt    DateTime @default(now())
 
   lessons  Lesson[]
   progress TrainingProgress[]
@@ -90,10 +95,11 @@ model LiveSession {
   id          String   @id @default(cuid())
   title       String
   description String
-  date        DateTime
-  time        String
-  meetingUrl  String?
-  createdAt   DateTime @default(now())
+  date         DateTime
+  time         String
+  meetingUrl   String?
+  thumbnailUrl String?
+  createdAt    DateTime @default(now())
 }
 
 model Message {
@@ -166,6 +172,15 @@ model InviteCode {
   usedBy      User?   @relation("InviteUser", fields: [usedById], references: [id])
 }
 
+model InviteAttempt {
+  id        String   @id @default(cuid())
+  code      String
+  email     String
+  status    String   // "SUCCESS", "INVALID", "ALREADY_USED"
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
 model UserSettings {
   id                  String  @id @default(cuid())
   pushNotifications   Boolean @default(true)
@@ -176,4 +191,15 @@ model UserSettings {
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SystemSettings {
+  id                     String   @id @default(cuid())
+  newMemberNotifications Boolean  @default(true)
+  sessionReminders       Boolean  @default(true)
+  weeklyDigest           Boolean  @default(false)
+  requireInviteCode      Boolean  @default(true)
+  openRegistration       Boolean  @default(false)
+  maintenanceMode        Boolean  @default(false)
+  updatedAt              DateTime @updatedAt
 }

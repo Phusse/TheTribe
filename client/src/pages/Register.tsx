@@ -18,12 +18,12 @@ const Register = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       // Clean form defaults and validate via Zod
       const payload = {
         ...form,
-        inviteCode: form.inviteCode.trim() === "" ? undefined : form.inviteCode.trim()
+        inviteCode: form.inviteCode.trim()
       };
       RegisterSchema.parse(payload);
 
@@ -85,7 +85,7 @@ const Register = () => {
             className="bg-card border border-border rounded-lg px-4 py-3 text-foreground text-sm font-body placeholder:text-muted-foreground/40 outline-none focus:border-primary/50 transition-colors disabled:opacity-50"
           />
           <input
-            type="text" placeholder="Invite Code (optional)" value={form.inviteCode} onChange={update("inviteCode")} disabled={loading}
+            type="text" placeholder="Invite Code (Required)" required value={form.inviteCode} onChange={update("inviteCode")} disabled={loading}
             className="bg-card border border-border rounded-lg px-4 py-3 text-foreground text-sm font-body placeholder:text-muted-foreground/40 outline-none focus:border-primary/50 transition-colors disabled:opacity-50 uppercase"
           />
           <button

@@ -1,4 +1,25 @@
 import { prisma } from "../../config/database";
+import type { UpdateSystemSettingsInput } from "@thetribe/shared";
+
+export const getSystemSettings = async () => {
+  let settings = await prisma.systemSettings.findFirst();
+  if (!settings) {
+    settings = await prisma.systemSettings.create({ data: {} });
+  }
+  return settings;
+};
+
+export const updateSystemSettings = async (input: UpdateSystemSettingsInput) => {
+  let settings = await prisma.systemSettings.findFirst();
+  if (!settings) {
+    settings = await prisma.systemSettings.create({ data: input });
+    return settings;
+  }
+  return prisma.systemSettings.update({
+    where: { id: settings.id },
+    data: input,
+  });
+};
 
 export const getDashboardStats = async () => {
   const [totalUsers, totalGroups, totalModules, totalInvites] = await Promise.all([

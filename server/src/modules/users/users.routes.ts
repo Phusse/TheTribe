@@ -7,6 +7,7 @@ import {
   updateProfileController,
   updateSettingsController,
   getStatsController,
+  getDiscoverableUsersController,
 } from "./users.controller";
 
 const router = Router();
@@ -19,5 +20,6 @@ router.get("/me", getProfileController);
 router.patch("/me", validate(UpdateProfileSchema), updateProfileController);
 router.patch("/me/settings", validate(UpdateSettingsSchema), updateSettingsController);
 router.get("/me/stats", getStatsController);
+router.get("/discover", getDiscoverableUsersController);
 
 export { router as usersRouter };

@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Bell,
   FileText,
+  MessagesSquare,
 } from "lucide-react";
 import tribeLogo from "@/assets/tribe-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +21,7 @@ const adminNavItems = [
   { path: "/admin", label: "Overview", icon: LayoutDashboard },
   { path: "/admin/users", label: "User Management", icon: Users },
   { path: "/admin/invites", label: "Invite Codes", icon: Ticket },
+  { path: "/admin/groups", label: "Group Management", icon: MessagesSquare },
   { path: "/admin/training", label: "Training Content", icon: BookOpen },
   { path: "/admin/sessions", label: "Live Sessions", icon: Video },
   { path: "/admin/stats", label: "Analytics", icon: BarChart3 },
@@ -59,11 +61,10 @@ const AdminSidebar = () => {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-body transition-colors duration-200 w-full text-left ${
-                active
+              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-body transition-colors duration-200 w-full text-left ${active
                   ? "text-sidebar-accent-foreground bg-sidebar-accent"
                   : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-surface-hover"
-              }`}
+                }`}
             >
               {active && (
                 <motion.div

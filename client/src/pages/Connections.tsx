@@ -1,5 +1,7 @@
-import { motion } from "framer-motion";
-import { UserPlus, Check, X, Users, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { UserPlus, Check, X, Users, Loader2, MessageSquare, UserMinus, AlertTriangle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -23,9 +25,20 @@ interface Connection {
   partner: Partner;
 }
 
+interface DiscoverUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  profilePhotoUrl: string | null;
+  occupation: string | null;
+  location: string | null;
+}
+
 const Connections = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [disconnectingPartner, setDisconnectingPartner] = useState<{ id: string; name: string } | null>(null);
 
   const { data: connections, isLoading, error } = useQuery({
     queryKey: ["connections"],
@@ -35,15 +48,35 @@ const Connections = () => {
     },
   });
 
+  const { data: discoverable, isLoading: isDiscoverLoading } = useQuery({
+    queryKey: ["discover-users"],
+    queryFn: async () => {
+      const res = await api.get("/users/discover");
+      return res.data as DiscoverUser[];
+    },
+  });
+
+  const { mutate: sendRequest, isPending: isRequesting } = useMutation({
+    mutationFn: async (receiverId: string) => {
+      await api.post("/connections/request", { receiverId });
+    },
+    onSuccess: () => {
+      toast.success("Connection request sent!");
+      queryClient.invalidateQueries({ queryKey: ["connections"] });
+      queryClient.invalidateQueries({ queryKey: ["discover-users"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const { mutate: updateStatus } = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: "accepted" | "rejected" }) => {
       await api.patch(`/connections/${id}/status`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["connections"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar-stats"] });
     },
-    onError: () => toast.error("Failed to update status"),
+    onError: (e: any) => toast.error(e.message),
   });
 
   const { mutate: deleteConnection } = useMutation({
@@ -51,9 +84,12 @@ const Connections = () => {
       await api.delete(`/connections/${id}`);
     },
     onSuccess: () => {
+      setDisconnectingPartner(null);
+      toast.success("Connection removed");
       queryClient.invalidateQueries({ queryKey: ["connections"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar-stats"] });
     },
-    onError: () => toast.error("Failed to remove connection"),
+    onError: (e: any) => toast.error(e.message),
   });
 
   if (isLoading) {
@@ -74,6 +110,49 @@ const Connections = () => {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Disconnect Confirmation Modal */}
+      <AnimatePresence>
+        {disconnectingPartner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setDisconnectingPartner(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="surface-card p-6 w-full max-w-sm rounded-xl flex flex-col items-center text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4 text-destructive">
+                <UserMinus className="w-6 h-6" />
+              </div>
+              <h2 className="font-display text-foreground text-lg mb-2">Disconnect?</h2>
+              <p className="text-sm font-body text-muted-foreground mb-6">
+                Are you sure you want to remove <span className="font-semibold text-foreground">{disconnectingPartner.name}</span> from your connections?
+              </p>
+              <div className="flex w-full gap-3">
+                <button
+                  onClick={() => setDisconnectingPartner(null)}
+                  className="flex-1 py-2 rounded-lg bg-muted text-foreground text-sm font-body font-medium hover:bg-muted/70 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteConnection(disconnectingPartner.id)}
+                  className="flex-1 py-2 rounded-lg bg-destructive text-white text-sm font-body font-medium hover:brightness-110 transition-all"
+                >
+                  Disconnect
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={vaultTransition}>
         <h1 className="font-display text-foreground text-3xl">Connections</h1>
         <p className="text-muted-foreground text-sm font-body mt-1">Your professional network within the tribe.</p>
@@ -99,13 +178,13 @@ const Connections = () => {
                   <p className="text-foreground text-sm font-body font-medium">{p.partner.firstName} {p.partner.lastName}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button 
+                  <button
                     onClick={() => updateStatus({ id: p.id, status: "accepted" })}
                     className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors"
                   >
                     <Check className="w-4 h-4" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => updateStatus({ id: p.id, status: "rejected" })}
                     className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                   >
@@ -149,12 +228,67 @@ const Connections = () => {
                   <p className="text-foreground text-sm font-body font-medium">{c.partner.firstName} {c.partner.lastName}</p>
                   <p className="text-muted-foreground text-xs font-body">Member</p>
                 </div>
-                <button 
-                  onClick={() => deleteConnection(c.id)}
-                  className="p-2 -mr-2 text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                  title="Remove Connection"
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => navigate("/dashboard/messages", { state: { newChatUser: c.partner } })}
+                    className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors"
+                    title="Send Message"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setDisconnectingPartner({ id: c.id, name: `${c.partner.firstName} ${c.partner.lastName}` })}
+                    className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Disconnect"
+                  >
+                    <UserMinus className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Discover */}
+      <div>
+        <p className="section-label mb-4">Discover Members</p>
+        {isDiscoverLoading ? (
+          <div className="flex justify-center p-6"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+        ) : !discoverable || discoverable.length === 0 ? (
+          <p className="text-muted-foreground text-sm font-body italic">You're connected with everyone!</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {discoverable.map((u, i) => (
+              <motion.div
+                key={u.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ ...vaultTransition, delay: 0.05 * i }}
+                className="surface-card p-5 flex flex-col gap-4 text-center items-center"
+              >
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                  {u.profilePhotoUrl ? (
+                    <img src={u.profilePhotoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-lg font-body font-medium text-muted-foreground">
+                      {u.firstName[0]}{u.lastName[0]}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-foreground text-base font-body font-medium">{u.firstName} {u.lastName}</h3>
+                  <p className="text-muted-foreground text-xs font-body mt-0.5 max-w-[140px] truncate">
+                    {u.occupation || "Member"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => sendRequest(u.id)}
+                  disabled={isRequesting}
+                  className="w-full py-2 rounded-lg bg-primary/10 text-primary text-sm font-body font-medium hover:bg-primary hover:text-primary-foreground transition-colors mt-auto disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  <X className="w-4 h-4" />
+                  <UserPlus className="w-4 h-4" />
+                  Connect
                 </button>
               </motion.div>
             ))}

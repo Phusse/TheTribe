@@ -16,10 +16,17 @@ export const getInvites = async () => {
     used: i.used,
     createdAt: i.createdAt.toISOString(),
     usedAt: i.usedAt?.toISOString(),
-    usedBy: i.usedBy 
-      ? { id: i.usedBy.id, name: `${i.usedBy.firstName} ${i.usedBy.lastName}` } 
+    usedBy: i.usedBy
+      ? { id: i.usedBy.id, name: `${i.usedBy.firstName} ${i.usedBy.lastName}` }
       : null,
   }));
+};
+
+export const getInviteAttempts = async () => {
+  return prisma.inviteAttempt.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100, // Just return the most recent 100 attempts for the UI
+  });
 };
 
 export const createInvite = async (adminId: string, customCode?: string) => {

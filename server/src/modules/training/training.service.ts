@@ -6,6 +6,7 @@ import type {
   UpdateLessonInput,
   UpdateProgressInput,
 } from "@thetribe/shared";
+import { uploadImageToCloudinary } from "../../utils/cloudinary";
 
 // ── Admin: Modules ────────────────────────────────────────────────────────────
 
@@ -25,27 +26,42 @@ export const getAdminModules = async () => {
     duration: m.duration,
     order: m.order,
     published: m.published,
+    thumbnailUrl: m.thumbnailUrl,
     lessons: m.lessons,
     enrolledCount: m._count.progress,
   }));
 };
 
 export const createModule = async (input: CreateModuleInput) => {
+  let thumbUrl = input.thumbnailUrl;
+  if (thumbUrl && thumbUrl.startsWith("data:image/")) {
+    thumbUrl = await uploadImageToCloudinary(thumbUrl, "thetribe/training");
+  }
+
   return prisma.trainingModule.create({
     data: {
       title: input.title,
       category: input.category,
       duration: input.duration,
       order: input.order,
+      thumbnailUrl: thumbUrl,
     },
     include: { lessons: true },
   });
 };
 
 export const updateModule = async (id: string, input: UpdateModuleInput) => {
+  let thumbUrl = input.thumbnailUrl;
+  if (thumbUrl && thumbUrl.startsWith("data:image/")) {
+    thumbUrl = await uploadImageToCloudinary(thumbUrl, "thetribe/training");
+  }
+
   return prisma.trainingModule.update({
     where: { id },
-    data: input,
+    data: {
+      ...input,
+      ...(thumbUrl !== undefined && { thumbnailUrl: thumbUrl }),
+    },
     include: { lessons: { orderBy: { order: "asc" } } },
   });
 };
@@ -102,6 +118,7 @@ export const getModules = async (userId: string) => {
       duration: m.duration,
       order: m.order,
       published: m.published,
+      thumbnailUrl: m.thumbnailUrl,
       lessons: m.lessons,
       progress: progressValue,
       completed: !!userProgress?.completedAt,

@@ -8,6 +8,10 @@ export interface User {
     role: UserRole;
     isActive: boolean;
     profilePhotoUrl?: string | null;
+    occupation?: string | null;
+    bio?: string | null;
+    location?: string | null;
+    phone?: string | null;
     pledgeAccepted: boolean;
     createdAt: string;
     updatedAt: string;

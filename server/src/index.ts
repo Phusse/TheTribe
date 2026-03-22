@@ -21,6 +21,7 @@ import { connectionsRouter } from "./modules/connections/connections.routes";
 import { invitesRouter } from "./modules/invites/invites.routes";
 import { adminRouter } from "./modules/admin/admin.routes";
 import { registerMessageGateway } from "./modules/messages/messages.gateway";
+import { searchRouter } from "./modules/search/search.routes";
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -38,7 +39,7 @@ registerMessageGateway(io);
 // ── Core middleware ───────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ app.use("/api/groups", groupsRouter);
 app.use("/api/connections", connectionsRouter);
 app.use("/api/invites", invitesRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/search", searchRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => {

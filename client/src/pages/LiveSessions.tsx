@@ -13,6 +13,7 @@ interface Session {
   date: string;
   time: string;
   meetingUrl?: string;
+  thumbnailUrl?: string;
   upcoming: boolean;
 }
 
@@ -65,8 +66,12 @@ const LiveSessions = () => {
                   className="surface-card p-4 lg:p-6 flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between hover:shadow-vault-hover transition-all duration-200"
                 >
                   <div className="flex items-start sm:items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Video className="w-5 h-5 text-primary" />
+                    <div className="w-24 h-16 sm:w-32 sm:h-20 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 overflow-hidden relative">
+                      {s.thumbnailUrl ? (
+                        <img src={s.thumbnailUrl} alt={s.title} className="absolute inset-0 w-full h-full object-cover" />
+                      ) : (
+                        <Video className="w-6 h-6 text-primary" />
+                      )}
                     </div>
                     <div>
                       <h3 className="font-display text-foreground text-base lg:text-lg">{s.title}</h3>
@@ -80,15 +85,14 @@ const LiveSessions = () => {
                     <span className="text-primary text-sm font-body font-medium tabular-nums">
                       {daysUntil === 0 ? "Today" : `${daysUntil} days`}
                     </span>
-                    <a 
-                      href={s.meetingUrl || "#"} 
-                      target={s.meetingUrl ? "_blank" : "_self"} 
+                    <a
+                      href={s.meetingUrl || "#"}
+                      target={s.meetingUrl ? "_blank" : "_self"}
                       rel="noreferrer"
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-body font-medium transition-colors ${
-                        s.meetingUrl 
-                          ? "bg-primary/10 text-primary hover:bg-primary/20" 
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-body font-medium transition-colors ${s.meetingUrl
+                          ? "bg-primary/10 text-primary hover:bg-primary/20"
                           : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
-                      }`}
+                        }`}
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                       Join

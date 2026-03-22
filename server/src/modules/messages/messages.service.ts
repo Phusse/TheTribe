@@ -1,4 +1,5 @@
 import { prisma } from "../../config/database";
+import { isUserOnline } from "./messages.gateway";
 
 export const getConversations = async (userId: string) => {
   // Find all distinct users we have exchanged messages with
@@ -8,8 +9,8 @@ export const getConversations = async (userId: string) => {
     },
     orderBy: { createdAt: "desc" },
     include: {
-      sender: { select: { id: true, firstName: true, lastName: true, profilePhotoUrl: true } },
-      receiver: { select: { id: true, firstName: true, lastName: true, profilePhotoUrl: true } },
+      sender: { select: { id: true, firstName: true, lastName: true, profilePhotoUrl: true, isActive: true } },
+      receiver: { select: { id: true, firstName: true, lastName: true, profilePhotoUrl: true, isActive: true } },
     },
   });
 
@@ -22,9 +23,14 @@ export const getConversations = async (userId: string) => {
 
     if (!conversationsMap.has(partner.id)) {
       conversationsMap.set(partner.id, {
-        partnerId: partner.id,
-        partnerName: `${partner.firstName} ${partner.lastName}`,
-        partnerAvatar: partner.profilePhotoUrl,
+        partner: {
+          id: partner.id,
+          firstName: partner.firstName,
+          lastName: partner.lastName,
+          profilePhotoUrl: partner.profilePhotoUrl,
+          isActive: partner.isActive, // DB active state
+          isOnline: isUserOnline(partner.id), // Live websocket state
+        },
         lastMessage: m.text,
         lastMessageAt: m.createdAt.toISOString(),
         unreadCount: !isSender && !m.read ? 1 : 0,

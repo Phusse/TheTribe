@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { validate } from "../../middleware/validate.middleware";
 import { authenticate } from "../../middleware/auth.middleware";
-import { RegisterSchema, LoginSchema, RefreshSchema } from "./auth.schema";
+import {
+  RegisterSchema,
+  LoginSchema,
+  RefreshSchema,
+  ForgotPasswordSchema,
+  ResetPasswordSchema,
+} from "./auth.schema";
 import {
   registerController,
   loginController,
@@ -9,6 +15,8 @@ import {
   logoutController,
   pledgeController,
   meController,
+  forgotPasswordController,
+  resetPasswordController,
 } from "./auth.controller";
 
 const router = Router();
@@ -18,6 +26,8 @@ router.post("/register", validate(RegisterSchema), registerController);
 router.post("/login", validate(LoginSchema), loginController);
 router.post("/refresh", validate(RefreshSchema), refreshController);
 router.post("/logout", logoutController);
+router.post("/forgot-password", validate(ForgotPasswordSchema), forgotPasswordController);
+router.post("/reset-password", validate(ResetPasswordSchema), resetPasswordController);
 
 // Protected routes
 router.get("/me", authenticate, meController);

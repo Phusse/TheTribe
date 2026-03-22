@@ -8,7 +8,12 @@ import {
   getUsersController,
   updateUserRoleController,
   toggleUserStatusController,
+  getSystemSettingsController,
+  updateSystemSettingsController,
 } from "./admin.controller";
+import { UpdateSystemSettingsSchema } from "@thetribe/shared";
+import { getReportsData } from "./admin.reports.service";
+import { sendSuccess, sendError } from "../../utils/response";
 
 const router = Router();
 
@@ -20,12 +25,24 @@ const ToggleStatusSchema = z.object({
   isActive: z.boolean(),
 });
 
-// All routes require SUPERADMIN access
-router.use(authenticate, requireRole("SUPERADMIN"));
+// Stats & Overviews (Allowed for ADMIN & SUPERADMIN)
+router.get("/stats", authenticate, requireRole("ADMIN"), getStatsController);
+router.get("/users", authenticate, requireRole("ADMIN"), getUsersController);
+router.get("/reports", authenticate, requireRole("ADMIN"), async (_req, res) => {
+  try {
+    const data = await getReportsData();
+    sendSuccess(res, data);
+  } catch (err) {
+    sendError(res, "Failed to fetch reports", 500);
+  }
+});
 
-router.get("/stats", getStatsController);
-router.get("/users", getUsersController);
-router.patch("/users/:id/role", validate(UpdateRoleSchema), updateUserRoleController);
-router.patch("/users/:id/status", validate(ToggleStatusSchema), toggleUserStatusController);
+// System Settings
+router.get("/settings", authenticate, requireRole("ADMIN"), getSystemSettingsController);
+router.patch("/settings", authenticate, requireRole("ADMIN"), validate(UpdateSystemSettingsSchema), updateSystemSettingsController);
+
+// User Modification (Strictly SUPERADMIN)
+router.patch("/users/:id/role", authenticate, requireRole("SUPERADMIN"), validate(UpdateRoleSchema), updateUserRoleController);
+router.patch("/users/:id/status", authenticate, requireRole("SUPERADMIN"), validate(ToggleStatusSchema), toggleUserStatusController);
 
 export { router as adminRouter };

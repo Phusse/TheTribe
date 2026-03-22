@@ -15,6 +15,19 @@ export const getInvitesController = async (
   }
 };
 
+export const getInviteAttemptsController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const attempts = await invitesService.getInviteAttempts();
+    sendSuccess(res, attempts);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const createInviteController = async (
   req: Request,
   res: Response,

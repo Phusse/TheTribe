@@ -74,11 +74,11 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input
             type="email" placeholder="Email" required value={form.email} onChange={update("email")} disabled={loading}
-            className="bg-card border border-border rounded-lg px-4 py-3 text-foreground text-sm font-body placeholder:text-muted-foreground/30 outline-none focus:border-primary/50 transition-colors disabled:opacity-50"
+            className="auth-input disabled:opacity-50"
           />
           <input
             type="password" placeholder="Password" required value={form.password} onChange={update("password")} disabled={loading}
-            className="bg-card border border-border rounded-lg px-4 py-3 text-foreground text-sm font-body placeholder:text-muted-foreground/30 outline-none focus:border-primary/50 transition-colors disabled:opacity-50"
+            className="auth-input disabled:opacity-50"
           />
 
           <button
@@ -90,10 +90,16 @@ const Login = () => {
           </button>
         </form>
 
-        <p className="text-muted-foreground/40 text-xs text-center font-body">
-          Don't have an account?{" "}
-          <button onClick={() => navigate("/register")} className="text-primary hover:underline">Register</button>
-        </p>
+        <div className="flex flex-col items-center gap-2 mt-4">
+          <button onClick={() => navigate("/forgot-password")} className="text-muted-foreground/60 text-xs font-body hover:text-primary transition-colors">
+            Forgot your password?
+          </button>
+
+          <p className="text-muted-foreground/40 text-xs text-center font-body mt-2">
+            Don't have an account?{" "}
+            <button onClick={() => navigate("/register")} className="text-primary hover:underline">Register</button>
+          </p>
+        </div>
 
         <button
           onClick={() => navigate("/")}
