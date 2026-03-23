@@ -12,7 +12,7 @@ export const registerMessageGateway = (io: SocketIOServer) => {
     try {
       const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace("Bearer ", "");
       if (!token) return next(new Error("Authentication error: Token missing"));
-      
+
       const payload = verifyAccessToken(token);
       socket.data.user = payload;
       next();
@@ -23,7 +23,7 @@ export const registerMessageGateway = (io: SocketIOServer) => {
 
   io.on("connection", (socket: Socket) => {
     const userId = socket.data.user.sub;
-    
+
     // Register user 
     connectedUsers.set(userId, socket.id);
     console.log(`🔌 User connected: ${userId} (Socket: ${socket.id})`);
@@ -35,7 +35,7 @@ export const registerMessageGateway = (io: SocketIOServer) => {
       try {
         // Save to database
         const message = await messagesService.sendMessage(userId, data.receiverId, data.text);
-        
+
         // Populate sender info for the real-time event
         const populatedMsg = await prisma.message.findUnique({
           where: { id: message.id },
@@ -72,4 +72,8 @@ export const registerMessageGateway = (io: SocketIOServer) => {
 
 export const isUserOnline = (userId: string): boolean => {
   return connectedUsers.has(userId);
+};
+
+export const getSocketId = (userId: string): string | undefined => {
+  return connectedUsers.get(userId);
 };

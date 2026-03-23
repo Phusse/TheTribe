@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import * as messagesService from "./messages.service";
 import { sendSuccess, sendCreated } from "../../utils/response";
+import { io } from "../../index";
+import { getSocketId } from "./messages.gateway";
+import { prisma } from "../../config/database";
 
 export const getConversationsController = async (
   req: Request,
@@ -37,7 +40,21 @@ export const sendMessageController = async (
   try {
     const { partnerId } = req.params;
     const { text } = req.body;
-    const message = await messagesService.sendMessage(req.user!.sub, partnerId as string, text);
+    const userId = req.user!.sub;
+
+    const message = await messagesService.sendMessage(userId, partnerId as string, text);
+
+    // Trigger real-time update
+    const populatedMsg = await prisma.message.findUnique({
+      where: { id: message.id },
+      include: { sender: { select: { firstName: true, lastName: true } } }
+    });
+
+    const receiverSocketId = getSocketId(partnerId as string);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("message:receive", populatedMsg);
+    }
+
     sendCreated(res, message, "Message sent");
   } catch (err) {
     next(err);
