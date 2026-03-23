@@ -29,7 +29,7 @@ const adminNavItems = [
   { path: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
-const AdminSidebar = () => {
+export const AdminSidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isSuperAdmin, logout } = useAuth();
@@ -39,8 +39,13 @@ const AdminSidebar = () => {
     return location.pathname.startsWith(path);
   };
 
+  const handleNavigate = (path: string) => {
+    navigate(path);
+    onNavigate?.();
+  };
+
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[280px] bg-sidebar border-r border-sidebar-border flex-col z-40 hidden md:flex">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-6 py-5 flex items-center gap-3">
         <img src={tribeLogo} alt="The Tribe" className="w-9 h-9 object-contain" />
@@ -60,10 +65,10 @@ const AdminSidebar = () => {
           return (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => handleNavigate(item.path)}
               className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-body transition-colors duration-200 w-full text-left ${active
-                  ? "text-sidebar-accent-foreground bg-sidebar-accent"
-                  : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-surface-hover"
+                ? "text-sidebar-accent-foreground bg-sidebar-accent"
+                : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-surface-hover"
                 }`}
             >
               {active && (
@@ -83,7 +88,7 @@ const AdminSidebar = () => {
         <div className="my-4 h-px bg-border" />
         <p className="section-label px-3 mb-2">Quick Links</p>
         <button
-          onClick={() => navigate("/dashboard")}
+          onClick={() => handleNavigate("/dashboard")}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-body text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-surface-hover transition-colors duration-200 w-full text-left"
         >
           <Users className="w-4 h-4 shrink-0" />
@@ -114,6 +119,14 @@ const AdminSidebar = () => {
           Sign out
         </button>
       </div>
+    </div>
+  );
+};
+
+const AdminSidebar = ({ className }: { className?: string }) => {
+  return (
+    <aside className={`fixed left-0 top-0 h-screen w-[280px] bg-sidebar border-r border-sidebar-border z-40 ${className}`}>
+      <AdminSidebarContent />
     </aside>
   );
 };

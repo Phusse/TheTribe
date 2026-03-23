@@ -31,7 +31,7 @@ const staticNavItems = [
   { path: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-const AppSidebar = () => {
+export const AppSidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, logout } = useAuth();
@@ -52,8 +52,13 @@ const AppSidebar = () => {
     return location.pathname.startsWith(path);
   };
 
+  const handleNavigate = (path: string) => {
+    navigate(path);
+    onNavigate?.();
+  };
+
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[280px] bg-sidebar border-r border-sidebar-border flex-col z-40 hidden md:flex">
+    <div className="h-full flex flex-col">
       {/* Logo */}
       <div className="px-6 py-5 flex items-center gap-3">
         <img src={tribeLogo} alt="The Tribe" className="w-9 h-9 object-contain" />
@@ -77,7 +82,7 @@ const AppSidebar = () => {
           return (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => handleNavigate(item.path)}
               className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-body transition-colors duration-200 w-full text-left ${active
                 ? "text-sidebar-accent-foreground bg-sidebar-accent"
                 : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-surface-hover"
@@ -106,7 +111,7 @@ const AppSidebar = () => {
             <div className="my-4 h-px bg-border" />
             <p className="section-label px-3 mb-2">Administration</p>
             <button
-              onClick={() => navigate("/admin")}
+              onClick={() => handleNavigate("/admin")}
               className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-body transition-colors duration-200 w-full text-left ${isActive("/admin")
                 ? "text-sidebar-accent-foreground bg-sidebar-accent"
                 : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-surface-hover"
@@ -131,6 +136,14 @@ const AppSidebar = () => {
       </div>
 
       {showSearch && <GlobalSearch onClose={() => setShowSearch(false)} />}
+    </div>
+  );
+};
+
+const AppSidebar = ({ className }: { className?: string }) => {
+  return (
+    <aside className={`fixed left-0 top-0 h-screen w-[280px] bg-sidebar border-r border-sidebar-border z-40 ${className}`}>
+      <AppSidebarContent />
     </aside>
   );
 };

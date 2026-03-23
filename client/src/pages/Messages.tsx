@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
+import { useSocket } from "@/hooks/useSocket";
 
 const vaultTransition = { duration: 0.3, ease: [0.2, 0, 0, 1] as const };
 
@@ -16,10 +17,7 @@ interface Partner {
   id: string;
   firstName: string;
   lastName: string;
-  lastName: string;
   profilePhotoUrl?: string;
-  isActive: boolean;
-  isOnline?: boolean;
 }
 
 interface MiniProfile {
@@ -60,6 +58,7 @@ const Messages = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const socket = useSocket();
 
   // 1. Fetch Conversations
   const { data: serverConversations, isLoading: loadingConvos } = useQuery({
@@ -68,7 +67,7 @@ const Messages = () => {
       const res = await api.get("/messages/conversations");
       return res.data as Conversation[];
     },
-    refetchInterval: 5000,
+    // Polling removed in favor of Socket.IO
   });
 
   // Inject a virtual conversation if we came from Connections with a newChatUser
@@ -110,7 +109,7 @@ const Messages = () => {
       return res.data as Message[];
     },
     enabled: !!selectedPartnerId,
-    refetchInterval: 3000,
+    // Polling removed in favor of Socket.IO
   });
 
   // 3. Send Message Mutation
@@ -152,6 +151,31 @@ const Messages = () => {
     setNewMsg((prev) => prev + emoji.native);
     setShowEmojiPicker(false);
   };
+
+  // Listen for real-time messages
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (msg: Message) => {
+      // If the message is for the current conversation, update the history
+      if (msg.senderId === selectedPartnerId || msg.senderId === user?.id) {
+        queryClient.setQueryData(["messages", selectedPartnerId], (old: Message[] | undefined) => {
+          if (!old) return [msg];
+          // Avoid duplicate messages if the mutation also added it
+          if (old.find((m) => m.id === msg.id)) return old;
+          return [...old, msg];
+        });
+      }
+
+      // Always invalidate conversations to update the last message and unread counts
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    };
+
+    socket.on("message:receive", handleNewMessage);
+    return () => {
+      socket.off("message:receive", handleNewMessage);
+    };
+  }, [socket, selectedPartnerId, queryClient, user?.id]);
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -242,18 +266,13 @@ const Messages = () => {
                   className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 border-b border-border/40 ${selectedPartnerId === c.partner.id ? "bg-muted/60" : "hover:bg-muted/30"
                     }`}
                 >
-                  <div className="relative">
-                    <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                      {c.partner.profilePhotoUrl ? (
-                        <img src={c.partner.profilePhotoUrl} alt="Avatar" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-xs font-body font-semibold text-muted-foreground">
-                          {getInitials(c.partner.firstName, c.partner.lastName)}
-                        </span>
-                      )}
-                    </div>
-                    {c.partner.isOnline && (
-                      <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[hsl(142_71%_45%)] border-2 border-card" />
+                  <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                    {c.partner.profilePhotoUrl ? (
+                      <img src={c.partner.profilePhotoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xs font-body font-semibold text-muted-foreground">
+                        {getInitials(c.partner.firstName, c.partner.lastName)}
+                      </span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -308,27 +327,19 @@ const Messages = () => {
                     avatar: activeConvo.partner.profilePhotoUrl || null
                   })}
                 >
-                  <div className="relative shrink-0">
-                    <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                      {activeConvo.partner.profilePhotoUrl ? (
-                        <img src={activeConvo.partner.profilePhotoUrl} alt="Avatar" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-xs font-body font-semibold text-muted-foreground">
-                          {getInitials(activeConvo.partner.firstName, activeConvo.partner.lastName)}
-                        </span>
-                      )}
-                    </div>
-                    {activeConvo.partner.isOnline && (
-                      <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[hsl(142_71%_45%)] border-2 border-card" />
+                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                    {activeConvo.partner.profilePhotoUrl ? (
+                      <img src={activeConvo.partner.profilePhotoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xs font-body font-semibold text-muted-foreground">
+                        {getInitials(activeConvo.partner.firstName, activeConvo.partner.lastName)}
+                      </span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="block text-sm font-body font-semibold text-foreground truncate">
                       {activeConvo.partner.firstName} {activeConvo.partner.lastName}
                     </span>
-                    <p className="block text-[11px] font-body text-muted-foreground/50 truncate">
-                      {activeConvo.partner.isOnline ? "online" : "offline"}
-                    </p>
                   </div>
                 </button>
               </div>
@@ -419,9 +430,8 @@ const Messages = () => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowEmojiPicker((p) => !p)}
-                    className={`w-9 h-9 rounded-full hover:bg-muted/50 flex items-center justify-center transition-colors shrink-0 ${
-                      showEmojiPicker ? "bg-primary/10 text-primary" : ""
-                    }`}
+                    className={`w-9 h-9 rounded-full hover:bg-muted/50 flex items-center justify-center transition-colors shrink-0 ${showEmojiPicker ? "bg-primary/10 text-primary" : ""
+                      }`}
                   >
                     <Smile className={`w-5 h-5 ${showEmojiPicker ? "text-primary" : "text-muted-foreground/50"}`} />
                   </button>
