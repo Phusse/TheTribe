@@ -11,11 +11,15 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    fs: {
+      allow: [".."]
+    }
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@thetribe/shared": path.resolve(__dirname, "../shared/src/index.ts"),
     },
   },
 }));
